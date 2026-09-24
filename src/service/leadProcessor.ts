@@ -15,13 +15,8 @@ export interface LeadResult {
   errorcode?: string;
   action?: LeadAction;
   contactId?: string;
-  /** Index of the earlier lead in the same request this one duplicated (SOP step 1). */
-  sameTransactionDuplicateOf?: number;
   warnings: string[];
 }
-
-/** Leads in one request are processed at most this many customer-groups at a time. */
-const BATCH_CONCURRENCY = 4;
 
 export class LeadProcessor {
   private readonly lock = new KeyedLock();
@@ -36,31 +31,17 @@ export class LeadProcessor {
     this.recent = new RecentContactCache(cfg.recentCacheTtlMs);
   }
 
-  /** SOP step 1: leads in the same request that share any phone/email are processed in order, one at a time. */
-  async processBatch(inputs: unknown[]): Promise<LeadResult[]> {
-    const results: LeadResult[] = new Array(inputs.length);
-    const parsed: { index: number; enquiry: Enquiry }[] = [];
-    inputs.forEach((input, index) => {
-      try {
-        parsed.push({ index, enquiry: parseEnquiry(input, this.cfg.defaultCountryCode) });
-      } catch (err) {
-        results[index] = errorResult(err);
-      }
-    });
-
-    const groups = groupBySharedIdentity(parsed);
-    await runWithConcurrency(groups, BATCH_CONCURRENCY, async (group) => {
-      const first = group[0]!.index;
-      for (const { index, enquiry } of group) {
-        const result = await this.processEnquiry(enquiry);
-        if (index !== first) result.sameTransactionDuplicateOf = first;
-        results[index] = result;
-      }
-    });
-    return results;
+  async processLead(input: unknown): Promise<LeadResult> {
+    let enquiry: Enquiry;
+    try {
+      enquiry = parseEnquiry(input, this.cfg.defaultCountryCode);
+    } catch (err) {
+      return errorResult(err);
+    }
+    return this.processEnquiry(enquiry);
   }
 
-  async processEnquiry(enquiry: Enquiry): Promise<LeadResult> {
+  private async processEnquiry(enquiry: Enquiry): Promise<LeadResult> {
     this.recent.prune();
     try {
       return await this.lock.withLocks(enquiry.identityKeys, () => this.decide(enquiry, [...enquiry.warnings]));
@@ -333,34 +314,6 @@ export function errorResult(err: unknown): LeadResult {
     errorcode = err.status === 409 && /mobile|phone/i.test(message) ? 'MOBILE_ALREADY_EXISTS' : 'HUBSPOT_ERROR';
   }
   return { responseId: message, status: 400, errorcode, warnings: [] };
-}
-
-/** Union-find over identity keys: leads sharing any phone/email end up in the same group, in original order. */
-export function groupBySharedIdentity<T extends { index: number; enquiry: Enquiry }>(items: T[]): T[][] {
-  const parent = items.map((_, i) => i);
-  const find = (i: number): number => (parent[i] === i ? i : (parent[i] = find(parent[i]!)));
-  const owner = new Map<string, number>();
-  items.forEach((item, i) => {
-    for (const key of item.enquiry.identityKeys) {
-      const j = owner.get(key);
-      if (j === undefined) owner.set(key, i);
-      else parent[find(i)] = find(j);
-    }
-  });
-  const groups = new Map<number, T[]>();
-  items.forEach((item, i) => {
-    const root = find(i);
-    groups.set(root, [...(groups.get(root) ?? []), item]);
-  });
-  return [...groups.values()].map((g) => g.sort((a, b) => a.index - b.index));
-}
-
-async function runWithConcurrency<T>(items: T[], limit: number, fn: (item: T) => Promise<void>) {
-  let next = 0;
-  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
-    while (next < items.length) await fn(items[next++]!);
-  });
-  await Promise.all(workers);
 }
 
 function phonesOf(e: Enquiry): NormalizedPhone[] {

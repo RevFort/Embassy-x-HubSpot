@@ -19,7 +19,6 @@ const toResponse = (r: LeadResult) => ({
   status: r.status,
   ...(r.errorcode ? { errorcode: r.errorcode } : {}),
   ...(r.action ? { action: r.action } : {}),
-  ...(r.sameTransactionDuplicateOf !== undefined ? { sameTransactionDuplicateOf: r.sameTransactionDuplicateOf } : {}),
 });
 
 const badRequest = (res: Response, message: string, errorcode = 'VALIDATION_ERROR') =>
@@ -42,31 +41,20 @@ export function createApp({ cfg, processor, integrationLog, log }: Deps) {
     const requestId = req.get('x-request-id') ?? randomUUID();
     res.setHeader('x-request-id', requestId);
 
-    const isBatch = Array.isArray(req.body);
-    const inputs: unknown[] = isBatch ? req.body : [req.body];
-    if (inputs.length === 0 || req.body === undefined) return badRequest(res, 'Request body must be a lead object or a non-empty array of leads');
-    if (inputs.length > cfg.maxBatchSize) return badRequest(res, `At most ${cfg.maxBatchSize} leads per request`);
+    const result = await processor.processLead(req.body);
+    await integrationLog.write({
+      requestId,
+      payload: req.body,
+      status: result.status,
+      responseId: result.responseId,
+      errorcode: result.errorcode,
+      action: result.action,
+      contactId: result.contactId,
+      warnings: result.warnings,
+      durationMs: Date.now() - started,
+    });
 
-    const results = await processor.processBatch(inputs);
-    await integrationLog.write(
-      results.map((r, index) => ({
-        requestId,
-        index,
-        payload: inputs[index],
-        status: r.status,
-        responseId: r.responseId,
-        errorcode: r.errorcode,
-        action: r.action,
-        contactId: r.contactId,
-        sameTransactionDuplicateOf: r.sameTransactionDuplicateOf,
-        warnings: r.warnings,
-        durationMs: Date.now() - started,
-      })),
-    );
-
-    if (isBatch) return res.status(200).json(results.map(toResponse));
-    const [single] = results;
-    return res.status(single!.status).json(toResponse(single!));
+    return res.status(result.status).json(toResponse(result));
   });
 
   app.use((_req, res) => {

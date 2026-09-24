@@ -80,18 +80,6 @@ describe('POST /api/v1/leads', () => {
     expect(entry).toMatchObject({ status: 200, action: 'NEW_CONTACT_CREATED', payload: { utm_ssc: 'Facebook' } });
   });
 
-  it('batch -> 200 with per-lead results in order', async () => {
-    const { app, auth } = await makeApp();
-    const res = await request(app)
-      .post('/api/v1/leads')
-      .set('authorization', auth)
-      .send([samplePayload(), { firstname: 'no id' }, samplePayload()])
-      .expect(200);
-    expect(res.body.map((r: { status: number }) => r.status)).toEqual([200, 400, 200]);
-    expect(res.body[1].errorcode).toBe('VALIDATION_ERROR');
-    expect(res.body[2]).toMatchObject({ action: 'EXISTING_CONTACT_UPDATED', responseId: res.body[0].responseId, sameTransactionDuplicateOf: 0 });
-  });
-
   it('invalid single lead -> HTTP 400', async () => {
     const { app, auth } = await makeApp();
     const res = await request(app).post('/api/v1/leads').set('authorization', auth).send({ lastname: 'x' }).expect(400);
@@ -109,8 +97,8 @@ describe('POST /api/v1/leads', () => {
     expect(res.body).toEqual({ responseId: 'Invalid JSON body', status: 400, errorcode: 'VALIDATION_ERROR' });
   });
 
-  it('empty array -> 400', async () => {
+  it('array body -> 400', async () => {
     const { app, auth } = await makeApp();
-    await request(app).post('/api/v1/leads').set('authorization', auth).send([]).expect(400);
+    await request(app).post('/api/v1/leads').set('authorization', auth).send([samplePayload()]).expect(400);
   });
 });

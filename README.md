@@ -25,7 +25,7 @@ curl -X POST https://<host>/oauth2/token \
 
 ## Endpoint
 
-`POST /api/v1/leads` with header `Authorization: Bearer <access_token>`. The body is one lead object or an array of them (up to `MAX_BATCH_SIZE`).
+`POST /api/v1/leads` with header `Authorization: Bearer <access_token>`. The body is a single lead object.
 
 ```json
 {
@@ -47,14 +47,12 @@ Also accepted as identifiers: `alternatemobile`, `alternateemail`. Keys are case
 | No duplicate | new Contact ID | 200 | `NEW_CONTACT_CREATED` |
 | Error | error message | 400 | `errorcode`: `VALIDATION_ERROR`, `MOBILE_ALREADY_EXISTS`, `HUBSPOT_ERROR`, `INTERNAL_ERROR` |
 
-- **Single object in** → one object out. The HTTP status equals `status`.
-- **Array in** → HTTP 200 with an array of results in the same order. A lead that duplicates an earlier one in the same request also has `sameTransactionDuplicateOf: <index>`.
+One object in → one object out. The HTTP status equals `status`.
 
 ## How the SOP maps to HubSpot
 
 | SOP step | Salesforce | This service |
 |---|---|---|
-| 1. Same-transaction check | Match within the incoming batch | Leads sharing any phone/email are grouped and processed in order, so later ones resolve to the first one's Contact |
 | 2–4. Duplicate check | Person Account / Residential Lead, create then delete the duplicate | Search Contacts on every phone and email. If one matches, it is updated (re-enquiry count +1, last enquiry time, latest payload) and a follow-up Task is created for its owner. Nothing new is created |
 | 5. UTM/Campaign attribution | Campaign Member / Task | Campaign Member custom-object record associated to the SF-campaign record and the Contact, plus the Task above |
 | 6. New enquiry | New Lead | New Contact with every mapped field |

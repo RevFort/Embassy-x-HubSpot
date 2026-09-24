@@ -3,8 +3,7 @@ import { HubSpotError } from '../src/hubspot/client.js';
 import { normalizePhone, parseEnquiry } from '../src/normalize.js';
 import { samplePayload, setup } from './helpers.js';
 
-const run = async (processor: ReturnType<typeof setup>['processor'], payload: unknown) =>
-  (await processor.processBatch([payload]))[0]!;
+const run = async (processor: ReturnType<typeof setup>['processor'], payload: unknown) => processor.processLead(payload);
 
 describe('normalizePhone', () => {
   it('produces the same key for common formats', () => {
@@ -116,30 +115,12 @@ describe('existing contact (re-enquiry)', () => {
   });
 });
 
-describe('SOP step 1 – same-transaction duplicates & concurrency', () => {
-  it('two leads for the same person in one request produce one contact, even with search index lag', async () => {
-    const { crm, processor } = setup();
-    crm.searchLag = true;
-    const results = await processor.processBatch([
-      samplePayload(),
-      samplePayload({ email: 'new@aa.in', utm_ssc: 'Instagram' }),
-      samplePayload({ mobile: '7700000000', email: 'someone.else@aa.in', firstname: 'Other' }),
-    ]);
-
-    expect(results.map((r) => r.action)).toEqual(['NEW_CONTACT_CREATED', 'EXISTING_CONTACT_UPDATED', 'NEW_CONTACT_CREATED']);
-    expect(results[1]!.responseId).toBe(results[0]!.responseId);
-    expect(results[1]!.sameTransactionDuplicateOf).toBe(0);
-    expect(results[2]!.sameTransactionDuplicateOf).toBeUndefined();
-    expect(crm.all('contacts')).toHaveLength(2);
-    // second enquiry's new email stored as alternate
-    expect(crm.get('contacts', results[0]!.contactId!)).toMatchObject({ alternate_email: 'new@aa.in' });
-  });
-
+describe('Concurrency & HubSpot search lag', () => {
   it('concurrent separate requests for the same mobile create only one contact', async () => {
     const { crm, processor } = setup();
     crm.searchLag = true;
-    const results = await Promise.all(Array.from({ length: 5 }, () => processor.processBatch([samplePayload()])));
-    const ids = new Set(results.map((r) => r[0]!.responseId));
+    const results = await Promise.all(Array.from({ length: 5 }, () => processor.processLead(samplePayload())));
+    const ids = new Set(results.map((r) => r.responseId));
     expect(ids.size).toBe(1);
     expect(crm.all('contacts')).toHaveLength(1);
   });

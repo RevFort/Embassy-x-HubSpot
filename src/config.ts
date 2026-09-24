@@ -47,8 +47,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
       signingSecret: env.TOKEN_SIGNING_SECRET ?? '',
       tokenTtlSeconds: int(env.ACCESS_TOKEN_TTL_SECONDS, 3600),
     },
-    maxBatchSize: int(env.MAX_BATCH_SIZE, 200),
-
     hubspot: {
       accessToken: env.HUBSPOT_ACCESS_TOKEN ?? '',
       baseUrl: env.HUBSPOT_BASE_URL ?? 'https://api.hubapi.com',
