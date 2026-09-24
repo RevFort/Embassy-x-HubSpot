@@ -113,20 +113,16 @@ export class LeadProcessor {
     for (const [prop, value] of assign) {
       if (value) props[prop] = value;
     }
-    const { reEnquiryCountProperty, lastEnquiryAtProperty, rawPayloadProperty } = this.cfg.tracking;
-    if (reEnquiryCountProperty) props[reEnquiryCountProperty] = '0';
-    if (lastEnquiryAtProperty) props[lastEnquiryAtProperty] = new Date().toISOString();
-    if (rawPayloadProperty) props[rawPayloadProperty] = rawPayload(enquiry);
 
     const contactId = await this.crm.create('contacts', props);
     return { id: contactId, properties: props as Record<string, string> };
   }
 
-  /** Fills in new identifiers (primary slot if empty, else alternate slot), applies the field mapping, and counts the re-enquiry. */
+  /** Fills in new identifiers (primary slot if empty, else alternate slot) and applies the field mapping. */
   private async updateContact(enquiry: Enquiry, contact: CrmRecord, warnings: string[]) {
     const props = await this.mappedProperties(enquiry, contact.properties, warnings);
     const id = this.cfg.identity;
-    const cc = enquiry.fields.countrycode ?? this.cfg.defaultCountryCode;
+    const cc = enquiry.countryCode;
 
     const phoneSlots = [id.mobile, id.alternateMobile];
     const knownPhones = new Set(
@@ -150,13 +146,6 @@ export class LeadProcessor {
       else warnings.push(`No empty email field on contact ${contact.id} for ${email}`);
       knownEmails.add(email);
     }
-
-    const { reEnquiryCountProperty, lastEnquiryAtProperty, rawPayloadProperty } = this.cfg.tracking;
-    if (reEnquiryCountProperty) {
-      props[reEnquiryCountProperty] = String((Number(contact.properties[reEnquiryCountProperty]) || 0) + 1);
-    }
-    if (lastEnquiryAtProperty) props[lastEnquiryAtProperty] = new Date().toISOString();
-    if (rawPayloadProperty) props[rawPayloadProperty] = rawPayload(enquiry);
 
     try {
       await this.crm.update('contacts', contact.id, props);
@@ -271,7 +260,6 @@ export class LeadProcessor {
         'hubspot_owner_id',
         'lastmodifieddate',
         'createdate',
-        this.cfg.tracking.reEnquiryCountProperty,
         ...this.mapping.fields.flatMap((f) => f.targets.map((t) => t.property)),
       ]),
     ].filter(Boolean);
@@ -314,8 +302,6 @@ function pickPrimaryContact(enquiry: Enquiry, contacts: CrmRecord[]): CrmRecord 
 const ts = (r: CrmRecord) => Date.parse(r.properties.lastmodifieddate ?? r.properties.createdate ?? '') || 0;
 
 const newestFirst = (records: CrmRecord[]) => [...records].sort((a, b) => ts(b) - ts(a));
-
-const rawPayload = (e: Enquiry) => JSON.stringify(e.raw).slice(0, 65000);
 
 function coerce(value: string, target: MappingTarget, warnings: string[]): string | undefined {
   if (target.type === 'date') {

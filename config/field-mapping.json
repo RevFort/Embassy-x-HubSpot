@@ -1,20 +1,23 @@
 {
-  "_doc": "Maps agency payload keys (matched case-insensitively) to HubSpot Contact properties. onUpdate controls what happens when the contact already exists: overwrite = always write the new value, fillEmpty = only write if the existing value is blank, skip = only written on create. Any payload key not listed here is kept in the raw-payload property so nothing sent by the agency is lost.",
+  "_doc": "Maps agency payload keys (matched case-insensitively) to HubSpot Contact properties. onUpdate controls what happens when the contact already exists: overwrite = always write the new value, fillEmpty = only write if the existing value is blank, skip = only written on create.",
   "fields": [
     { "source": "firstname", "targets": [{ "property":  "firstname", "onUpdate":  "fillEmpty" }] },
     { "source": "lastname", "targets": [{ "property":  "lastname", "onUpdate":  "fillEmpty" }] },
-    { "source": "comments", "targets": [{ "property":  "comments", "onUpdate":  "fillEmpty", "type":  "textarea" }] },
-    { "source": "project_id", "targets": [{ "property":  "project_interested__c", "onUpdate":  "fillEmpty" }] },
-    { "source": "platform", "targets": [{ "property":  "platform", "onUpdate":  "fillEmpty" }] },
+    { "source": "comments", "targets": [{ "property":  "comments", "onUpdate":  "overwrite", "type":  "textarea" }] },
+    { "source": "project_id", "targets": [
+      { "property": "project_interested__c", "onUpdate": "fillEmpty" },
+      { "property": "also_interested_in__c", "onUpdate": "overwrite" }
+    ] },
+    { "source": "platform", "targets": [{ "property":  "platform", "onUpdate":  "overwrite" }] },
     { "source": "countrycode", "targets": [{ "property":  "country_code__c", "onUpdate":  "fillEmpty" }] },
-    { "source": "meta_campaign_name", "targets": [{ "property":  "meta_campaign_name", "onUpdate":  "fillEmpty" }] },
-    { "source": "meta_adset_name", "targets": [{ "property":  "meta_adset_name", "onUpdate":  "fillEmpty" }] },
-    { "source": "meta_ad_name", "targets": [{ "property":  "meta_ad_name", "onUpdate":  "fillEmpty" }] },
-    { "source": "meta_campaign_id", "targets": [{ "property":  "meta_campaign_id", "onUpdate":  "fillEmpty" }] },
-    { "source": "meta_adset_id", "targets": [{ "property":  "meta_adset_id", "onUpdate":  "fillEmpty" }] },
-    { "source": "meta_ad_id", "targets": [{ "property":  "meta_ad_id", "onUpdate":  "fillEmpty" }] },
-    { "source": "meta_leadgen_id", "targets": [{ "property":  "meta_leadgen_id", "onUpdate":  "fillEmpty" }] },
-    { "source": "meta_form_id", "targets": [{ "property":  "meta_form_id", "onUpdate":  "fillEmpty" }] },
-    { "source": "meta_page_id", "targets": [{ "property":  "meta_page_id", "onUpdate":  "fillEmpty" }] }
+    { "source": "meta_campaign_name", "targets": [{ "property":  "meta_campaign_name", "onUpdate":  "overwrite" }] },
+    { "source": "meta_adset_name", "targets": [{ "property":  "meta_adset_name", "onUpdate":  "overwrite" }] },
+    { "source": "meta_ad_name", "targets": [{ "property":  "meta_ad_name", "onUpdate":  "overwrite" }] },
+    { "source": "meta_campaign_id", "targets": [{ "property":  "meta_campaign_id", "onUpdate":  "overwrite" }] },
+    { "source": "meta_adset_id", "targets": [{ "property":  "meta_adset_id", "onUpdate":  "overwrite" }] },
+    { "source": "meta_ad_id", "targets": [{ "property":  "meta_ad_id", "onUpdate":  "overwrite" }] },
+    { "source": "meta_leadgen_id", "targets": [{ "property":  "meta_leadgen_id", "onUpdate":  "overwrite" }] },
+    { "source": "meta_form_id", "targets": [{ "property":  "meta_form_id", "onUpdate":  "overwrite" }] },
+    { "source": "meta_page_id", "targets": [{ "property":  "meta_page_id", "onUpdate":  "overwrite" }] }
   ]
 }

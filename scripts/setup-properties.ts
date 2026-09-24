@@ -29,10 +29,6 @@ for (const f of mapping.fields) for (const t of f.targets) wanted.contacts.set(t
 const id = cfg.identity;
 wanted.contacts.set(id.alternateMobile, 'phone');
 wanted.contacts.set(id.alternateEmail, 'string');
-const t = cfg.tracking;
-if (t.reEnquiryCountProperty) wanted.contacts.set(t.reEnquiryCountProperty, 'number');
-if (t.lastEnquiryAtProperty) wanted.contacts.set(t.lastEnquiryAtProperty, 'datetime');
-if (t.rawPayloadProperty) wanted.contacts.set(t.rawPayloadProperty, 'textarea');
 
 async function hs<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(`${cfg.hubspot.baseUrl}${path}`, {

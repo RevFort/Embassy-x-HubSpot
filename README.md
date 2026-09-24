@@ -53,19 +53,19 @@ One object in → one object out. The HTTP status equals `status`.
 
 | SOP step | Salesforce | This service |
 |---|---|---|
-| 2–4. Duplicate check | Person Account / Residential Lead, create then delete the duplicate | Search Contacts on every phone and email. If one matches, it is updated (re-enquiry count +1, last enquiry time, latest payload) and a follow-up Task is created for its owner. Nothing new is created |
+| 2–4. Duplicate check | Person Account / Residential Lead, create then delete the duplicate | Search Contacts on every phone property. If one matches, it is updated and a follow-up Task is created for its owner. Nothing new is created |
 | 5. UTM/Campaign attribution | Campaign Member / Task | Campaign Member custom-object record associated to the SF-campaign record and the Contact, plus the Task above |
 | 6. New enquiry | New Lead | New Contact with every mapped field |
 | 9. Errors | Integration_Logs__c | JSONL file per day in `INTEGRATION_LOG_DIR` (one line per lead, with the payload) plus stdout |
 
-**Matching fields:** mobile, alternate mobile, email, alternate email. Each incoming phone is
-compared against both phone properties, and each email against both email properties. Phones are normalized, so `6600110066`,
-`+916600110066`, `+91 66001 10066` and `06600110066` all match. New numbers are stored as `+916600110066`.
+**Matching fields:** mobile, alternate mobile only. Email is never used to find a matching contact (only stored on
+the contact once one is found or created). Each incoming phone is compared against both phone properties. Phones are
+normalized, so `6600110066`, `+916600110066`, `+91 66001 10066` and `06600110066` all match. New numbers are stored as `+916600110066`.
 If several contacts match, the one matched on the incoming mobile wins, then the most recently modified.
 
 **Update rules** (see `config/field-mapping.json`): on an existing contact, `fillEmpty` fields are only written if blank. This keeps
 the original UTM/source attribution. `overwrite` fields (e.g. `latest_project_interested`, `latest_enquiry_date`) always take the latest value.
-The latest raw payload is stored on the Contact, and every enquiry's full details go into the re-enquiry Task and the integration log.
+Every enquiry's full details go into the re-enquiry Task and the integration log.
 A new phone/email on an existing Contact goes into the empty primary or alternate slot.
 The service never sets the contact owner. The payload's `owner` value is only stored in `requested_owner_queue`, and the re-enquiry Task goes to the contact's current owner.
 

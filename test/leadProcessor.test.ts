@@ -30,6 +30,17 @@ describe('parseEnquiry', () => {
   it('requires a name', () => {
     expect(() => parseEnquiry({ mobile: '6600110066' }, '91')).toThrow(/firstname or lastname/);
   });
+  it('falls back to the default when the payload countrycode is not a valid calling code', () => {
+    const enquiry = parseEnquiry({ lastname: 'x', mobile: '6600110066', countrycode: '999' }, '91');
+    expect(enquiry.countryCode).toBe('91');
+    expect(enquiry.mobile?.e164).toBe('+916600110066');
+    expect(enquiry.warnings).toEqual(['Ignored invalid countrycode: "999"; using default 91']);
+  });
+  it('accepts a valid payload countrycode over the default', () => {
+    const enquiry = parseEnquiry({ lastname: 'x', mobile: '5551234567', countrycode: '1' }, '91');
+    expect(enquiry.countryCode).toBe('1');
+    expect(enquiry.mobile?.e164).toBe('+15551234567');
+  });
 });
 
 describe('new enquiry', () => {
@@ -53,15 +64,29 @@ describe('new enquiry', () => {
       sf_campaign_id: '701fv00000MD4xKAAT',
       enquiry_date: '2026-05-12',
       requested_owner_queue: 'LMT Queue',
-      re_enquiry_count: '0',
     });
     expect(contact!.properties.hubspot_owner_id).toBeUndefined(); // owner is never set by the API
     expect(contact!.properties.enquiry_utm_term).toBeUndefined(); // blank values are not written
-    expect(JSON.parse(contact!.properties.marketing_api_raw_payload!)).toMatchObject({ utm_ssc: 'Facebook' });
     expect(crm.all('leads')).toHaveLength(0);
     expect(crm.all('tasks')).toHaveLength(0);
   });
 
+  it('stores country_code__c as bare digits, not "+91" (HubSpot rejects the dropdown option otherwise)', async () => {
+    const { crm, processor } = setup();
+    const r = await run(processor, samplePayload({ countrycode: '+91' }));
+
+    const contact = crm.get('contacts', r.contactId!)!;
+    expect(contact.country_code__c).toBe('91');
+  });
+
+  it('writes project_id to both project_interested__c and also_interested_in__c', async () => {
+    const { crm, processor } = setup();
+    const r = await run(processor, samplePayload({ project_id: 'Embassy Springs' }));
+
+    const contact = crm.get('contacts', r.contactId!)!;
+    expect(contact.project_interested__c).toBe('Embassy Springs');
+    expect(contact.also_interested_in__c).toBe('Embassy Springs');
+  });
 });
 
 describe('existing contact (re-enquiry)', () => {
@@ -73,7 +98,6 @@ describe('existing contact (re-enquiry)', () => {
       enquiry_utm_source: 'Google',
       latest_project_interested: 'Embassy Lake Terraces',
       hubspot_owner_id: '42',
-      re_enquiry_count: '2',
     });
 
     const r = await run(processor, samplePayload({ mobile: '+91 66001 10066', email: undefined }));
@@ -85,15 +109,23 @@ describe('existing contact (re-enquiry)', () => {
     expect(contact.enquiry_utm_source).toBe('Google'); // original attribution preserved
     expect(contact.leadsource).toBe('Digital Marketing'); // blank filled
     expect(contact.latest_project_interested).toBe('Embassy South Reserve'); // overwrite
-    expect(contact.re_enquiry_count).toBe('3');
     expect(contact.hubspot_owner_id).toBe('42'); // not reassigned
-    expect(JSON.parse(contact.marketing_api_raw_payload!)).toMatchObject({ mobile: '+91 66001 10066' });
 
     const [task] = crm.all('tasks');
     expect(task!.properties.hs_task_subject).toBe('Re-enquiry from existing contact: Embassy South Reserve');
     expect(task!.properties.hubspot_owner_id).toBe('42');
     expect(task!.properties.hs_task_body).toContain('UTM source: Facebook');
     expect(await crm.associatedIds('tasks', task!.id, 'contacts')).toEqual([contactId]);
+  });
+
+  it('overwrites country_code__c on update, even when already filled', async () => {
+    const { crm, processor } = setup();
+    const contactId = crm.seed('contacts', { phone: '6600110066', country_code__c: '1' });
+
+    const r = await run(processor, samplePayload({ mobile: '+91 66001 10066', email: undefined, countrycode: '+91' }));
+
+    expect(r).toMatchObject({ status: 200, action: 'EXISTING_CONTACT_UPDATED', responseId: contactId, contactId });
+    expect(crm.get('contacts', contactId)!.country_code__c).toBe('91');
   });
 
   it('does not match on email alone (lookup is phone-only), so a new contact is created', async () => {

@@ -63,13 +63,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     },
     defaultCountryCode: env.DEFAULT_COUNTRY_CODE ?? '91',
 
-    /** Contact properties the service computes itself. Set any of them to empty to disable it. */
-    tracking: {
-      reEnquiryCountProperty: env.PROP_RE_ENQUIRY_COUNT ?? 're_enquiry_count',
-      lastEnquiryAtProperty: env.PROP_LAST_ENQUIRY_AT ?? 'last_enquiry_at',
-      rawPayloadProperty: env.PROP_RAW_PAYLOAD ?? 'marketing_api_raw_payload',
-    },
-
     campaign: {
       enabled: bool(env.CAMPAIGN_ENABLED, false),
       /** Custom object mirroring Salesforce Campaigns, e.g. p244692974_sf_campaigns. */
