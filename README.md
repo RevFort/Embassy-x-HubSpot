@@ -87,14 +87,11 @@ Creates are never retried after timeouts or 5xx errors (only after 429), because
 ```bash
 cp .env.example .env            # fill HUBSPOT_ACCESS_TOKEN, OAUTH_CLIENT_ID, OAUTH_CLIENT_SECRET, TOKEN_SIGNING_SECRET
 npm ci
-npm run setup:properties        # dry run: lists custom properties that are missing
-npm run setup:properties -- --apply
 npm run dev                     # or: npm run build && npm start
-npm test
 ```
 
-The service assumes the configured properties already exist in the portal and writes to them directly; run
-`setup:properties` first (or create them yourself) so leads aren't rejected by HubSpot for an unknown property.
+The service assumes the configured properties already exist in the portal and writes to them directly; create
+them in HubSpot yourself so leads aren't rejected for an unknown property.
 
 ### Campaign attribution
 
