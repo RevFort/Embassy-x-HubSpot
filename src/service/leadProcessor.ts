@@ -3,7 +3,6 @@ import type { AppConfig, FieldMapping, MappingTarget } from '../config.js';
 import { HubSpotError, type Crm, type CrmProperties, type CrmRecord, type FilterGroup } from '../hubspot/client.js';
 import { normalizePhone, parseEnquiry, ValidationError, type Enquiry, type NormalizedPhone } from '../normalize.js';
 import { KeyedLock } from './keyedLock.js';
-import { RecentContactCache } from './recentCache.js';
 
 export type LeadAction = 'EXISTING_CONTACT_UPDATED' | 'NEW_CONTACT_CREATED';
 
@@ -20,16 +19,13 @@ export interface LeadResult {
 
 export class LeadProcessor {
   private readonly lock = new KeyedLock();
-  private readonly recent: RecentContactCache;
 
   constructor(
     private readonly crm: Crm,
     private readonly cfg: AppConfig,
     private readonly mapping: FieldMapping,
     private readonly log: Logger,
-  ) {
-    this.recent = new RecentContactCache(cfg.recentCacheTtlMs);
-  }
+  ) {}
 
   async processLead(input: unknown): Promise<LeadResult> {
     let enquiry: Enquiry;
@@ -42,7 +38,6 @@ export class LeadProcessor {
   }
 
   private async processEnquiry(enquiry: Enquiry): Promise<LeadResult> {
-    this.recent.prune();
     try {
       return await this.lock.withLocks(enquiry.identityKeys, () => this.decide(enquiry, [...enquiry.warnings]));
     } catch (err) {
@@ -70,7 +65,6 @@ export class LeadProcessor {
       }
       throw err;
     }
-    this.recent.remember(phoneIdentityKeys(enquiry), created.id);
     await this.recordCampaignAttribution(enquiry, created.id, warnings);
     return { responseId: created.id, status: 200, action: 'NEW_CONTACT_CREATED', contactId: created.id, warnings };
   }
@@ -78,7 +72,6 @@ export class LeadProcessor {
   /** Existing contact stays primary, is updated, attribution is recorded, and its ID is returned. */
   private async handleExistingContact(enquiry: Enquiry, contact: CrmRecord, warnings: string[]): Promise<LeadResult> {
     await this.updateContact(enquiry, contact, warnings);
-    this.recent.remember(phoneIdentityKeys(enquiry), contact.id);
     await this.recordCampaignAttribution(enquiry, contact.id, warnings);
     await this.createReEnquiryTask(enquiry, contact, warnings);
     return { responseId: contact.id, status: 200, action: 'EXISTING_CONTACT_UPDATED', contactId: contact.id, warnings };
@@ -87,9 +80,8 @@ export class LeadProcessor {
   // ---------------------------------------------------------------- lookups
 
   private async findContacts(enquiry: Enquiry, extraIds: string[]): Promise<CrmRecord[]> {
-    const available = await this.crm.propertyNames('contacts');
     const id = this.cfg.identity;
-    const phoneProps = [id.mobile, id.alternateMobile].filter((p) => available.has(p));
+    const phoneProps = [id.mobile, id.alternateMobile];
 
     const phoneValues = [...new Set(phonesOf(enquiry).flatMap((p) => p.variants))];
 
@@ -102,7 +94,7 @@ export class LeadProcessor {
     const found = groups.length ? await this.crm.search('contacts', groups, properties) : [];
 
     const knownIds = new Set(found.map((c) => c.id));
-    const missing = [...new Set([...this.recent.contactIdsFor(phoneIdentityKeys(enquiry)), ...extraIds])].filter((i) => !knownIds.has(i));
+    const missing = extraIds.filter((i) => !knownIds.has(i));
     if (missing.length) found.push(...(await this.crm.batchRead('contacts', missing, properties)));
     return found;
   }
@@ -118,16 +110,13 @@ export class LeadProcessor {
       [id.email, enquiry.email],
       [id.alternateEmail, enquiry.alternateEmail],
     ];
-    const available = await this.crm.propertyNames('contacts');
     for (const [prop, value] of assign) {
-      if (!value) continue;
-      if (available.has(prop)) props[prop] = value;
-      else warnings.push(`Contact property "${prop}" does not exist; value "${value}" not stored on contact`);
+      if (value) props[prop] = value;
     }
     const { reEnquiryCountProperty, lastEnquiryAtProperty, rawPayloadProperty } = this.cfg.tracking;
-    if (reEnquiryCountProperty && available.has(reEnquiryCountProperty)) props[reEnquiryCountProperty] = '0';
-    if (lastEnquiryAtProperty && available.has(lastEnquiryAtProperty)) props[lastEnquiryAtProperty] = new Date().toISOString();
-    if (rawPayloadProperty && available.has(rawPayloadProperty)) props[rawPayloadProperty] = rawPayload(enquiry);
+    if (reEnquiryCountProperty) props[reEnquiryCountProperty] = '0';
+    if (lastEnquiryAtProperty) props[lastEnquiryAtProperty] = new Date().toISOString();
+    if (rawPayloadProperty) props[rawPayloadProperty] = rawPayload(enquiry);
 
     const contactId = await this.crm.create('contacts', props);
     return { id: contactId, properties: props as Record<string, string> };
@@ -136,17 +125,16 @@ export class LeadProcessor {
   /** Fills in new identifiers (primary slot if empty, else alternate slot), applies the field mapping, and counts the re-enquiry. */
   private async updateContact(enquiry: Enquiry, contact: CrmRecord, warnings: string[]) {
     const props = await this.mappedProperties(enquiry, contact.properties, warnings);
-    const available = await this.crm.propertyNames('contacts');
     const id = this.cfg.identity;
     const cc = enquiry.fields.countrycode ?? this.cfg.defaultCountryCode;
 
-    const phoneSlots = [id.mobile, id.alternateMobile].filter((p) => available.has(p));
+    const phoneSlots = [id.mobile, id.alternateMobile];
     const knownPhones = new Set(
       phoneSlots.map((p) => contact.properties[p]).flatMap((v) => (v ? [normalizePhone(v, cc)?.key] : [])),
     );
     const placePhone = (phone: NormalizedPhone | undefined, slots: string[]) => {
       if (!phone || knownPhones.has(phone.key)) return;
-      const slot = slots.find((s) => available.has(s) && !contact.properties[s] && !props[s]);
+      const slot = slots.find((s) => !contact.properties[s] && !props[s]);
       if (slot) props[slot] = phone.e164;
       else warnings.push(`No empty phone field on contact ${contact.id} for ${phone.e164}`);
       knownPhones.add(phone.key);
@@ -157,18 +145,18 @@ export class LeadProcessor {
     const knownEmails = new Set([id.email, id.alternateEmail].map((p) => contact.properties[p]?.toLowerCase()).filter(Boolean));
     for (const email of [enquiry.email, enquiry.alternateEmail]) {
       if (!email || knownEmails.has(email)) continue;
-      const slot = [id.email, id.alternateEmail].find((s) => available.has(s) && !contact.properties[s] && !props[s]);
+      const slot = [id.email, id.alternateEmail].find((s) => !contact.properties[s] && !props[s]);
       if (slot) props[slot] = email;
       else warnings.push(`No empty email field on contact ${contact.id} for ${email}`);
       knownEmails.add(email);
     }
 
     const { reEnquiryCountProperty, lastEnquiryAtProperty, rawPayloadProperty } = this.cfg.tracking;
-    if (reEnquiryCountProperty && available.has(reEnquiryCountProperty)) {
+    if (reEnquiryCountProperty) {
       props[reEnquiryCountProperty] = String((Number(contact.properties[reEnquiryCountProperty]) || 0) + 1);
     }
-    if (lastEnquiryAtProperty && available.has(lastEnquiryAtProperty)) props[lastEnquiryAtProperty] = new Date().toISOString();
-    if (rawPayloadProperty && available.has(rawPayloadProperty)) props[rawPayloadProperty] = rawPayload(enquiry);
+    if (lastEnquiryAtProperty) props[lastEnquiryAtProperty] = new Date().toISOString();
+    if (rawPayloadProperty) props[rawPayloadProperty] = rawPayload(enquiry);
 
     try {
       await this.crm.update('contacts', contact.id, props);
@@ -257,16 +245,11 @@ export class LeadProcessor {
     existing: Record<string, string | null> | undefined,
     warnings: string[],
   ): Promise<CrmProperties> {
-    const available = await this.crm.propertyNames('contacts');
     const props: CrmProperties = {};
     for (const field of this.mapping.fields) {
       const value = enquiry.fields[field.source];
       if (value === undefined) continue;
       for (const target of field.targets) {
-        if (!available.has(target.property)) {
-          warnings.push(`Contact property "${target.property}" does not exist; "${field.source}" not stored`);
-          continue;
-        }
         const coerced = coerce(value, target, warnings);
         if (coerced === undefined) continue;
         if (existing) {
@@ -313,11 +296,6 @@ export function errorResult(err: unknown): LeadResult {
 
 function phonesOf(e: Enquiry): NormalizedPhone[] {
   return [e.mobile, e.alternateMobile].filter((p): p is NormalizedPhone => !!p);
-}
-
-/** Identity keys derived from phone only; email is never used to match contacts. */
-function phoneIdentityKeys(e: Enquiry): string[] {
-  return phonesOf(e).map((p) => `p:${p.key}`);
 }
 
 /** Prefer the contact matched on the incoming mobile, then the most recently modified. */

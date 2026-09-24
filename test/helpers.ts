@@ -8,16 +8,8 @@ export const TEST_CLIENT_SECRET = 'test-secret-0123456789abcdef0123456789';
 
 export const silentLog = pino({ level: 'silent' });
 
-export const CONTACT_PROPS = [
-  'firstname', 'lastname', 'email', 'phone', 'mobilephone',
-  'lifecyclestage', 'hubspot_owner_id', 'lastmodifieddate', 'createdate', 'leadsource', 'project_interested',
-  'latest_project_interested', 'mode_of_enquiry', 'enquiry_sub_source', 'requested_owner_queue', 'enquiry_utm_source',
-  'enquiry_utm_medium', 'enquiry_utm_term', 'sf_campaign_id', 'enquiry_date', 'latest_enquiry_date', 'comments',
-  'project_interested__c', 'country_code__c', 're_enquiry_count', 'last_enquiry_at', 'marketing_api_raw_payload',
-];
-
 export function setup(env: Record<string, string> = {}) {
-  const crm = new FakeCrm({ contacts: CONTACT_PROPS, tasks: [] });
+  const crm = new FakeCrm();
   const cfg = loadConfig({
     OAUTH_CLIENT_ID: TEST_CLIENT_ID,
     OAUTH_CLIENT_SECRET: TEST_CLIENT_SECRET,

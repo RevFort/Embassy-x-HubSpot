@@ -85,9 +85,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
 
     createTaskOnReEnquiry: bool(env.CREATE_TASK_ON_RE_ENQUIRY, true),
 
-    /** HubSpot search is eventually consistent (a few seconds); remember what we just created. */
-    recentCacheTtlMs: int(env.RECENT_CACHE_TTL_MS, 5 * 60 * 1000),
-
     integrationLog: {
       dir: env.INTEGRATION_LOG_DIR ?? './logs',
       includePayload: bool(env.INTEGRATION_LOG_INCLUDE_PAYLOAD, true),

@@ -25,7 +25,6 @@ export interface Crm {
   create(objectType: string, properties: CrmProperties): Promise<string>;
   update(objectType: string, id: string, properties: CrmProperties): Promise<void>;
   associateDefault(fromType: string, fromId: string, toType: string, toId: string): Promise<void>;
-  propertyNames(objectType: string): Promise<Set<string>>;
 }
 
 export class HubSpotError extends Error {
@@ -47,8 +46,6 @@ const SEARCH_PAGE_LIMIT = 100;
 const MAX_FILTER_GROUPS = 5;
 
 export class HubSpotCrm implements Crm {
-  private readonly propertyCache = new Map<string, Promise<Set<string>>>();
-
   constructor(
     private readonly opts: { accessToken: string; baseUrl: string; timeoutMs: number; maxRetries: number },
     private readonly log: Logger,
@@ -109,18 +106,6 @@ export class HubSpotCrm implements Crm {
 
   async associateDefault(fromType: string, fromId: string, toType: string, toId: string): Promise<void> {
     await this.request('PUT', `/crm/v4/objects/${fromType}/${fromId}/associations/default/${toType}/${toId}`);
-  }
-
-  propertyNames(objectType: string): Promise<Set<string>> {
-    let cached = this.propertyCache.get(objectType);
-    if (!cached) {
-      cached = this.request<{ results: { name: string }[] }>('GET', `/crm/v3/properties/${objectType}`).then(
-        (r) => new Set(r.results.map((p) => p.name)),
-      );
-      cached.catch(() => this.propertyCache.delete(objectType));
-      this.propertyCache.set(objectType, cached);
-    }
-    return cached;
   }
 
   private async request<T = unknown>(method: string, path: string, body?: unknown, idempotent = true): Promise<T> {

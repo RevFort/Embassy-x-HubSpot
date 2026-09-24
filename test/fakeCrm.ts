@@ -15,8 +15,6 @@ export class FakeCrm implements Crm {
   /** Hook to inject failures: return an error to throw it. */
   failOn?: (op: string, objectType: string, props?: CrmProperties) => Error | undefined;
 
-  constructor(private readonly properties: Record<string, string[]> = {}) {}
-
   seed(objectType: string, props: Record<string, string>, id = String(this.nextId++)): string {
     this.table(objectType).set(id, { hs_object_id: id, ...props });
     return id;
@@ -86,10 +84,6 @@ export class FakeCrm implements Crm {
   async associateDefault(fromType: string, fromId: string, toType: string, toId: string): Promise<void> {
     this.maybeFail('associate', `${fromType}->${toType}`);
     this.link(fromType, fromId, toType, toId);
-  }
-
-  async propertyNames(objectType: string): Promise<Set<string>> {
-    return new Set(this.properties[objectType] ?? []);
   }
 
   private table(objectType: string) {

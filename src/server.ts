@@ -1,7 +1,7 @@
 import { pino } from 'pino';
 import { createApp } from './app.js';
-import { loadConfig, loadFieldMapping, type AppConfig, type FieldMapping } from './config.js';
-import { HubSpotCrm, type Crm } from './hubspot/client.js';
+import { loadConfig, loadFieldMapping } from './config.js';
+import { HubSpotCrm } from './hubspot/client.js';
 import { IntegrationLog } from './integrationLog.js';
 import { LeadProcessor } from './service/leadProcessor.js';
 
@@ -16,8 +16,6 @@ if (cfg.oauth.signingSecret.length < 32) throw new Error('TOKEN_SIGNING_SECRET i
 const mapping = loadFieldMapping(cfg.fieldMappingPath);
 const crm = new HubSpotCrm(cfg.hubspot, log);
 
-await reportMissingProperties(crm, cfg, mapping);
-
 const processor = new LeadProcessor(crm, cfg, mapping, log);
 const integrationLog = new IntegrationLog(cfg.integrationLog.dir, cfg.integrationLog.includePayload, log);
 const server = createApp({ cfg, processor, integrationLog, log }).listen(cfg.port, () => {
@@ -30,29 +28,4 @@ for (const signal of ['SIGTERM', 'SIGINT'] as const) {
     server.close(() => process.exit(0));
     setTimeout(() => process.exit(1), 10_000).unref();
   });
-}
-
-/** Warn at startup (don't crash) about configured properties that don't exist in the portal. */
-async function reportMissingProperties(crm: Crm, cfg: AppConfig, mapping: FieldMapping) {
-  const t = cfg.tracking;
-  const wanted: Record<string, string[]> = {
-    contacts: [
-      ...Object.values(cfg.identity),
-      t.reEnquiryCountProperty,
-      t.lastEnquiryAtProperty,
-      t.rawPayloadProperty,
-      ...mapping.fields.flatMap((f) => f.targets.map((target) => target.property)),
-    ],
-  };
-  for (const [objectType, props] of Object.entries(wanted)) {
-    try {
-      const existing = await crm.propertyNames(objectType);
-      const missing = [...new Set(props.filter(Boolean))].filter((p) => !existing.has(p));
-      if (missing.length) {
-        log.warn({ objectType, missing }, 'Configured HubSpot properties do not exist; run `npm run setup:properties`');
-      }
-    } catch (err) {
-      log.error({ err, objectType }, 'Could not read HubSpot properties at startup (check token scopes)');
-    }
-  }
 }

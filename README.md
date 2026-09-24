@@ -76,12 +76,11 @@ Only failures that stop the Contact being created or updated return 400.
 
 HubSpot's search index takes a few seconds to catch up after a write. Without handling this, two quick calls for the same person would both create a contact. The service:
 1. serializes processing per phone/email with an in-process lock, and
-2. remembers identifier → Contact ID for records it recently created or matched (`RECENT_CACHE_TTL_MS`, default 5 min), and reads those by ID, which is immediately consistent.
-3. On contact create, a unique-email 409 is caught and the flow is re-run against the existing contact.
+2. on contact create, catches a unique-email 409 and re-runs the flow against the existing contact.
 
 Creates are never retried after timeouts or 5xx errors (only after 429), because a retry could create a duplicate.
 
-> **Run a single instance.** The lock and cache are in-memory. To scale out, move them to Redis or an Azure Blob lease first.
+> **Run a single instance.** The lock is in-memory. To scale out, move it to Redis or an Azure Blob lease first.
 
 ## Setup
 
@@ -94,8 +93,8 @@ npm run dev                     # or: npm run build && npm start
 npm test
 ```
 
-At startup the service logs any configured property that doesn't exist in the portal. Values for missing properties are
-skipped (with a warning in the integration log) so leads keep flowing.
+The service assumes the configured properties already exist in the portal and writes to them directly; run
+`setup:properties` first (or create them yourself) so leads aren't rejected by HubSpot for an unknown property.
 
 ### Campaign attribution
 

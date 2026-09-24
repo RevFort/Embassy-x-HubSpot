@@ -22,7 +22,7 @@ export interface Enquiry {
   alternateMobile?: NormalizedPhone;
   email?: string;
   alternateEmail?: string;
-  /** All identifier keys (p:<phone>, e:<email>), used for grouping, locks and the recent-create cache. */
+  /** All identifier keys (p:<phone>, e:<email>), used to serialize concurrent processing for the same person. */
   identityKeys: string[];
   warnings: string[];
 }
