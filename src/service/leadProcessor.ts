@@ -108,7 +108,7 @@ export class LeadProcessor {
   private async findContacts(enquiry: Enquiry, extraIds: string[]): Promise<CrmRecord[]> {
     const available = await this.crm.propertyNames('contacts');
     const id = this.cfg.identity;
-    const phoneProps = [id.mobile, id.alternateMobile, id.landline, id.alternateLandline].filter((p) => available.has(p));
+    const phoneProps = [id.mobile, id.alternateMobile].filter((p) => available.has(p));
     const emailProps = [id.email, id.alternateEmail].filter((p) => available.has(p));
 
     const phoneValues = [...new Set(phonesOf(enquiry).flatMap((p) => p.variants))];
@@ -139,8 +139,6 @@ export class LeadProcessor {
     const assign: [string, string | undefined][] = [
       [id.mobile, enquiry.mobile?.e164],
       [id.alternateMobile, enquiry.alternateMobile?.e164],
-      [id.landline, enquiry.landline?.e164],
-      [id.alternateLandline, enquiry.alternateLandline?.e164],
       [id.email, enquiry.email],
       [id.alternateEmail, enquiry.alternateEmail],
     ];
@@ -166,7 +164,7 @@ export class LeadProcessor {
     const id = this.cfg.identity;
     const cc = enquiry.fields.countrycode ?? this.cfg.defaultCountryCode;
 
-    const phoneSlots = [id.mobile, id.alternateMobile, id.landline, id.alternateLandline].filter((p) => available.has(p));
+    const phoneSlots = [id.mobile, id.alternateMobile].filter((p) => available.has(p));
     const knownPhones = new Set(
       phoneSlots.map((p) => contact.properties[p]).flatMap((v) => (v ? [normalizePhone(v, cc)?.key] : [])),
     );
@@ -179,8 +177,6 @@ export class LeadProcessor {
     };
     placePhone(enquiry.mobile, [id.mobile, id.alternateMobile]);
     placePhone(enquiry.alternateMobile, [id.alternateMobile, id.mobile]);
-    placePhone(enquiry.landline, [id.landline, id.alternateLandline]);
-    placePhone(enquiry.alternateLandline, [id.alternateLandline, id.landline]);
 
     const knownEmails = new Set([id.email, id.alternateEmail].map((p) => contact.properties[p]?.toLowerCase()).filter(Boolean));
     for (const email of [enquiry.email, enquiry.alternateEmail]) {
@@ -368,7 +364,7 @@ async function runWithConcurrency<T>(items: T[], limit: number, fn: (item: T) =>
 }
 
 function phonesOf(e: Enquiry): NormalizedPhone[] {
-  return [e.mobile, e.alternateMobile, e.landline, e.alternateLandline].filter((p): p is NormalizedPhone => !!p);
+  return [e.mobile, e.alternateMobile].filter((p): p is NormalizedPhone => !!p);
 }
 
 /** Prefer the contact matched on the incoming mobile, then the most recently modified. */

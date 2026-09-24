@@ -26,7 +26,7 @@ describe('normalizePhone', () => {
 
 describe('parseEnquiry', () => {
   it('requires an identifier', () => {
-    expect(() => parseEnquiry({ lastname: 'x' }, '91')).toThrow(/mobile, landline or email/);
+    expect(() => parseEnquiry({ lastname: 'x' }, '91')).toThrow(/mobile or email/);
   });
   it('requires a name', () => {
     expect(() => parseEnquiry({ mobile: '6600110066' }, '91')).toThrow(/firstname or lastname/);
@@ -44,7 +44,7 @@ describe('new enquiry', () => {
       firstname: 'Test',
       lastname: 'aurum',
       email: 'testaurum@aa.in',
-      mobilephone: '+916600110066',
+      phone: '+916600110066',
       project_interested: 'Embassy South Reserve',
       latest_project_interested: 'Embassy South Reserve',
       leadsource: 'Digital Marketing',
@@ -70,7 +70,7 @@ describe('existing contact (re-enquiry)', () => {
     const { crm, processor } = setup();
     const contactId = crm.seed('contacts', {
       firstname: 'Old',
-      mobilephone: '6600110066',
+      phone: '6600110066',
       enquiry_utm_source: 'Google',
       latest_project_interested: 'Embassy Lake Terraces',
       hubspot_owner_id: '42',
@@ -99,17 +99,17 @@ describe('existing contact (re-enquiry)', () => {
 
   it('matches on alternate email, and stores the new mobile on the contact', async () => {
     const { crm, processor } = setup();
-    const contactId = crm.seed('contacts', { email: 'other@x.com', alternate_email: 'testaurum@aa.in', mobilephone: '+919999999999' });
+    const contactId = crm.seed('contacts', { email: 'other@x.com', alternate_email: 'testaurum@aa.in', phone: '+919999999999' });
 
     const r = await run(processor, samplePayload());
     expect(r.responseId).toBe(contactId);
-    expect(crm.get('contacts', contactId)).toMatchObject({ mobilephone: '+919999999999', alternate_mobile: '+916600110066' });
+    expect(crm.get('contacts', contactId)).toMatchObject({ phone: '+919999999999', alternate_mobile: '+916600110066' });
   });
 
   it('prefers the contact matched on mobile over one matched on email', async () => {
     const { crm, processor } = setup();
     const byEmail = crm.seed('contacts', { email: 'testaurum@aa.in', lastmodifieddate: '2026-06-01T00:00:00Z' });
-    const byMobile = crm.seed('contacts', { mobilephone: '6600110066', lastmodifieddate: '2026-01-01T00:00:00Z' });
+    const byMobile = crm.seed('contacts', { phone: '6600110066', lastmodifieddate: '2026-01-01T00:00:00Z' });
 
     expect((await run(processor, samplePayload())).responseId).toBe(byMobile);
     expect(byEmail).not.toBe(byMobile);
@@ -190,14 +190,14 @@ describe('SOP §9 – errors', () => {
     const { processor } = setup();
     const r = await run(processor, { firstname: 'x' });
     expect(r).toMatchObject({ status: 400, errorcode: 'VALIDATION_ERROR' });
-    expect(r.responseId).toMatch(/mobile, landline or email/);
+    expect(r.responseId).toMatch(/mobile or email/);
   });
 
   it('HubSpot mobile uniqueness conflict -> MOBILE_ALREADY_EXISTS', async () => {
     const { crm, processor } = setup();
     crm.failOn = (op, type) =>
       op === 'create' && type === 'contacts'
-        ? new HubSpotError('A contact with mobilephone +916600110066 already exists', 409, {})
+        ? new HubSpotError('A contact with phone +916600110066 already exists', 409, {})
         : undefined;
     const r = await run(processor, samplePayload());
     expect(r).toMatchObject({ status: 400, errorcode: 'MOBILE_ALREADY_EXISTS' });
@@ -211,7 +211,7 @@ describe('SOP §9 – errors', () => {
 
   it('task failure does not fail the request', async () => {
     const { crm, processor } = setup();
-    const contactId = crm.seed('contacts', { mobilephone: '+916600110066' });
+    const contactId = crm.seed('contacts', { phone: '+916600110066' });
     crm.failOn = (op, type) => (op === 'create' && type === 'tasks' ? new Error('no scope') : undefined);
     const r = await run(processor, samplePayload());
     expect(r).toMatchObject({ status: 200, responseId: contactId });

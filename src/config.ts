@@ -58,10 +58,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
 
     /** Contact properties that hold identifiers. Searched for matches and written on create. */
     identity: {
-      mobile: env.PROP_MOBILE ?? 'mobilephone',
+      mobile: env.PROP_MOBILE ?? 'phone',
       alternateMobile: env.PROP_ALTERNATE_MOBILE ?? 'alternate_mobile',
-      landline: env.PROP_LANDLINE ?? 'phone',
-      alternateLandline: env.PROP_ALTERNATE_LANDLINE ?? 'alternate_landline',
       email: env.PROP_EMAIL ?? 'email',
       alternateEmail: env.PROP_ALTERNATE_EMAIL ?? 'alternate_email',
     },

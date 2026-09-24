@@ -3,9 +3,10 @@
   "fields": [
     { "source": "firstname", "targets": [{ "property":  "firstname", "onUpdate":  "fillEmpty" }] },
     { "source": "lastname", "targets": [{ "property":  "lastname", "onUpdate":  "fillEmpty" }] },
-    { "source": "comments", "targets": [{ "property":  "enquiry_comments", "onUpdate":  "fillEmpty", "type":  "textarea" }] },
-    { "source": "project_id", "targets": [{ "property":  "project_id", "onUpdate":  "fillEmpty" }] },
+    { "source": "comments", "targets": [{ "property":  "comments", "onUpdate":  "fillEmpty", "type":  "textarea" }] },
+    { "source": "project_id", "targets": [{ "property":  "project_interested__c", "onUpdate":  "fillEmpty" }] },
     { "source": "platform", "targets": [{ "property":  "platform", "onUpdate":  "fillEmpty" }] },
+    { "source": "countrycode", "targets": [{ "property":  "country_code__c", "onUpdate":  "fillEmpty" }] },
     { "source": "meta_campaign_name", "targets": [{ "property":  "meta_campaign_name", "onUpdate":  "fillEmpty" }] },
     { "source": "meta_adset_name", "targets": [{ "property":  "meta_adset_name", "onUpdate":  "fillEmpty" }] },
     { "source": "meta_ad_name", "targets": [{ "property":  "meta_ad_name", "onUpdate":  "fillEmpty" }] },

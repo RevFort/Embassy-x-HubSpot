@@ -9,11 +9,11 @@ export const TEST_CLIENT_SECRET = 'test-secret-0123456789abcdef0123456789';
 export const silentLog = pino({ level: 'silent' });
 
 export const CONTACT_PROPS = [
-  'firstname', 'lastname', 'email', 'alternate_email', 'mobilephone', 'alternate_mobile', 'phone', 'alternate_landline',
+  'firstname', 'lastname', 'email', 'alternate_email', 'phone', 'alternate_mobile',
   'lifecyclestage', 'hubspot_owner_id', 'lastmodifieddate', 'createdate', 'leadsource', 'project_interested',
   'latest_project_interested', 'mode_of_enquiry', 'enquiry_sub_source', 'requested_owner_queue', 'enquiry_utm_source',
-  'enquiry_utm_medium', 'enquiry_utm_term', 'sf_campaign_id', 'enquiry_date', 'latest_enquiry_date', 'enquiry_comments',
-  're_enquiry_count', 'last_enquiry_at', 'marketing_api_raw_payload',
+  'enquiry_utm_medium', 'enquiry_utm_term', 'sf_campaign_id', 'enquiry_date', 'latest_enquiry_date', 'comments',
+  'project_interested__c', 'country_code__c', 're_enquiry_count', 'last_enquiry_at', 'marketing_api_raw_payload',
 ];
 
 export function setup(env: Record<string, string> = {}) {

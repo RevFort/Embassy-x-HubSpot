@@ -27,7 +27,7 @@ if (!cfg.hubspot.accessToken) throw new Error('HUBSPOT_ACCESS_TOKEN is required'
 const wanted: Record<'contacts', Map<string, Kind>> = { contacts: new Map() };
 for (const f of mapping.fields) for (const t of f.targets) wanted.contacts.set(t.property, t.type);
 const id = cfg.identity;
-for (const p of [id.alternateMobile, id.alternateLandline]) wanted.contacts.set(p, 'phone');
+wanted.contacts.set(id.alternateMobile, 'phone');
 wanted.contacts.set(id.alternateEmail, 'string');
 const t = cfg.tracking;
 if (t.reEnquiryCountProperty) wanted.contacts.set(t.reEnquiryCountProperty, 'number');

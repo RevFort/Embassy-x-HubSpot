@@ -37,7 +37,7 @@ curl -X POST https://<host>/oauth2/token \
 }
 ```
 
-Also accepted as identifiers: `alternatemobile`, `landline`, `alternatelandline`, `alternateemail`. Keys are case-insensitive.
+Also accepted as identifiers: `alternatemobile`, `alternateemail`. Keys are case-insensitive.
 
 ### Response (SOP §5)
 
@@ -60,8 +60,8 @@ Also accepted as identifiers: `alternatemobile`, `landline`, `alternatelandline`
 | 6. New enquiry | New Lead | New Contact with every mapped field |
 | 9. Errors | Integration_Logs__c | JSONL file per day in `INTEGRATION_LOG_DIR` (one line per lead, with the payload) plus stdout |
 
-**Matching fields:** mobile, alternate mobile, landline, alternate landline, email, alternate email. Each incoming phone is
-compared against all four phone properties, and each email against both email properties. Phones are normalized, so `6600110066`,
+**Matching fields:** mobile, alternate mobile, email, alternate email. Each incoming phone is
+compared against both phone properties, and each email against both email properties. Phones are normalized, so `6600110066`,
 `+916600110066`, `+91 66001 10066` and `06600110066` all match. New numbers are stored as `+916600110066`.
 If several contacts match, the one matched on the incoming mobile wins, then the most recently modified.
 

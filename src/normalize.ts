@@ -20,8 +20,6 @@ export interface Enquiry {
   fields: Record<string, string>;
   mobile?: NormalizedPhone;
   alternateMobile?: NormalizedPhone;
-  landline?: NormalizedPhone;
-  alternateLandline?: NormalizedPhone;
   email?: string;
   alternateEmail?: string;
   /** All identifier keys (p:<phone>, e:<email>), used for grouping, locks and the recent-create cache. */
@@ -40,9 +38,6 @@ export const IDENTITY_SOURCE_KEYS = new Set([
   'mobile',
   'alternatemobile',
   'alternate_mobile',
-  'landline',
-  'alternatelandline',
-  'alternate_landline',
   'email',
   'alternateemail',
   'alternate_email',
@@ -119,15 +114,13 @@ export function parseEnquiry(input: unknown, defaultCountryCode: string): Enquir
     fields,
     mobile: phone('mobile'),
     alternateMobile: phone('alternatemobile', 'alternate_mobile'),
-    landline: phone('landline'),
-    alternateLandline: phone('alternatelandline', 'alternate_landline'),
     email: email('email'),
     alternateEmail: email('alternateemail', 'alternate_email'),
     identityKeys: [],
     warnings,
   };
 
-  const phones = [enquiry.mobile, enquiry.alternateMobile, enquiry.landline, enquiry.alternateLandline];
+  const phones = [enquiry.mobile, enquiry.alternateMobile];
   const emails = [enquiry.email, enquiry.alternateEmail];
   enquiry.identityKeys = [
     ...new Set([
@@ -137,7 +130,7 @@ export function parseEnquiry(input: unknown, defaultCountryCode: string): Enquir
   ].sort();
 
   if (enquiry.identityKeys.length === 0) {
-    throw new ValidationError('A valid mobile, landline or email is required');
+    throw new ValidationError('A valid mobile or email is required');
   }
   if (!fields.lastname && !fields.firstname) {
     throw new ValidationError('firstname or lastname is required');
