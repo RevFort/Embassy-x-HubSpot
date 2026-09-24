@@ -70,7 +70,7 @@ export class LeadProcessor {
       }
       throw err;
     }
-    this.recent.remember(enquiry.identityKeys, created.id);
+    this.recent.remember(phoneIdentityKeys(enquiry), created.id);
     await this.recordCampaignAttribution(enquiry, created.id, warnings);
     return { responseId: created.id, status: 200, action: 'NEW_CONTACT_CREATED', contactId: created.id, warnings };
   }
@@ -78,7 +78,7 @@ export class LeadProcessor {
   /** Existing contact stays primary, is updated, attribution is recorded, and its ID is returned. */
   private async handleExistingContact(enquiry: Enquiry, contact: CrmRecord, warnings: string[]): Promise<LeadResult> {
     await this.updateContact(enquiry, contact, warnings);
-    this.recent.remember(enquiry.identityKeys, contact.id);
+    this.recent.remember(phoneIdentityKeys(enquiry), contact.id);
     await this.recordCampaignAttribution(enquiry, contact.id, warnings);
     await this.createReEnquiryTask(enquiry, contact, warnings);
     return { responseId: contact.id, status: 200, action: 'EXISTING_CONTACT_UPDATED', contactId: contact.id, warnings };
@@ -90,24 +90,19 @@ export class LeadProcessor {
     const available = await this.crm.propertyNames('contacts');
     const id = this.cfg.identity;
     const phoneProps = [id.mobile, id.alternateMobile].filter((p) => available.has(p));
-    const emailProps = [id.email, id.alternateEmail].filter((p) => available.has(p));
 
     const phoneValues = [...new Set(phonesOf(enquiry).flatMap((p) => p.variants))];
-    const emailValues = [enquiry.email, enquiry.alternateEmail].filter((e): e is string => !!e);
 
     const groups: FilterGroup[] = [];
     if (phoneValues.length) {
       for (const p of phoneProps) groups.push({ filters: [{ propertyName: p, operator: 'IN', values: phoneValues }] });
-    }
-    if (emailValues.length) {
-      for (const p of emailProps) groups.push({ filters: [{ propertyName: p, operator: 'IN', values: emailValues }] });
     }
 
     const properties = await this.contactReadProperties();
     const found = groups.length ? await this.crm.search('contacts', groups, properties) : [];
 
     const knownIds = new Set(found.map((c) => c.id));
-    const missing = [...new Set([...this.recent.contactIdsFor(enquiry.identityKeys), ...extraIds])].filter((i) => !knownIds.has(i));
+    const missing = [...new Set([...this.recent.contactIdsFor(phoneIdentityKeys(enquiry)), ...extraIds])].filter((i) => !knownIds.has(i));
     if (missing.length) found.push(...(await this.crm.batchRead('contacts', missing, properties)));
     return found;
   }
@@ -318,6 +313,11 @@ export function errorResult(err: unknown): LeadResult {
 
 function phonesOf(e: Enquiry): NormalizedPhone[] {
   return [e.mobile, e.alternateMobile].filter((p): p is NormalizedPhone => !!p);
+}
+
+/** Identity keys derived from phone only; email is never used to match contacts. */
+function phoneIdentityKeys(e: Enquiry): string[] {
+  return phonesOf(e).map((p) => `p:${p.key}`);
 }
 
 /** Prefer the contact matched on the incoming mobile, then the most recently modified. */

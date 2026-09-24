@@ -96,13 +96,14 @@ describe('existing contact (re-enquiry)', () => {
     expect(await crm.associatedIds('tasks', task!.id, 'contacts')).toEqual([contactId]);
   });
 
-  it('matches on alternate email, and stores the new mobile on the contact', async () => {
+  it('does not match on email alone (lookup is phone-only), so a new contact is created', async () => {
     const { crm, processor } = setup();
     const contactId = crm.seed('contacts', { email: 'other@x.com', alternate_email: 'testaurum@aa.in', phone: '+919999999999' });
 
     const r = await run(processor, samplePayload());
-    expect(r.responseId).toBe(contactId);
-    expect(crm.get('contacts', contactId)).toMatchObject({ phone: '+919999999999', alternate_mobile: '+916600110066' });
+    expect(r.action).toBe('NEW_CONTACT_CREATED');
+    expect(r.responseId).not.toBe(contactId);
+    expect(crm.all('contacts')).toHaveLength(2);
   });
 
   it('prefers the contact matched on mobile over one matched on email', async () => {
