@@ -2,9 +2,6 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { z } from 'zod';
 
-const list = (v: string | undefined, fallback: string[] = []): string[] =>
-  v === undefined ? fallback : v.split(',').map((s) => s.trim()).filter(Boolean);
-
 const bool = (v: string | undefined, fallback: boolean): boolean =>
   v === undefined || v === '' ? fallback : ['1', 'true', 'yes', 'on'].includes(v.toLowerCase());
 

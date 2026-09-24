@@ -85,17 +85,6 @@ export const VALID_COUNTRY_CODES = [
 
 const VALID_COUNTRY_CODE_PREFIXES = new Set(VALID_COUNTRY_CODES.map((c) => c.split('-')[0]));
 
-/** Payload keys consumed as identifiers; everything else goes through the field mapping. */
-export const IDENTITY_SOURCE_KEYS = new Set([
-  'mobile',
-  'alternatemobile',
-  'alternate_mobile',
-  'email',
-  'alternateemail',
-  'alternate_email',
-  'countrycode',
-]);
-
 export function normalizePhone(raw: string, countryCode: string): NormalizedPhone | undefined {
   const hadPlus = raw.trim().startsWith('+');
   let digits = raw.replace(/\D/g, '');
