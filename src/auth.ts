@@ -14,7 +14,6 @@ interface TokenClaims {
 }
 
 const digest = (s: string) => createHash('sha256').update(s).digest();
-/** Constant-time string compare that doesn't leak length. */
 const safeEqual = (a: string, b: string) => timingSafeEqual(digest(a), digest(b));
 
 const b64url = (buf: Buffer | string) => Buffer.from(buf).toString('base64url');

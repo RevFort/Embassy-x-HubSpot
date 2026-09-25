@@ -113,6 +113,7 @@ export class LeadProcessor {
     for (const [prop, value] of assign) {
       if (value) props[prop] = value;
     }
+    props.hubspot_owner_id = '1682675289';
 
     const contactId = await this.crm.create('contacts', props);
     return { id: contactId, properties: props as Record<string, string> };

@@ -62,11 +62,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
 
     campaign: {
       enabled: bool(env.CAMPAIGN_ENABLED, false),
-      /** Custom object mirroring Salesforce Campaigns, e.g. p244692974_sf_campaigns. */
       objectType: env.CAMPAIGN_OBJECT_TYPE ?? '',
-      /** Property on that object holding the Salesforce campaign ID (payload campaignId). */
       idProperty: env.CAMPAIGN_ID_PROPERTY ?? 'sf_campaign_id',
-      /** Custom object mirroring Salesforce Campaign Members, e.g. p244692974_campaign_member. */
       memberObjectType: env.CAMPAIGN_MEMBER_OBJECT_TYPE ?? '',
       memberNameProperty: env.CAMPAIGN_MEMBER_NAME_PROPERTY ?? 'name',
       memberStatusProperty: env.CAMPAIGN_MEMBER_STATUS_PROPERTY ?? 'status',

@@ -148,7 +148,6 @@ export function parseEnquiry(input: unknown, defaultCountryCode: string): Enquir
 
   const warnings: string[] = [];
   const cc = resolveCountryCode(fields.countrycode, defaultCountryCode, warnings);
-  // Normalize in place so the field mapping (country_code__c is a HubSpot dropdown of bare digits) never sees "+91".
   if (fields.countrycode) fields.countrycode = cc;
   const phone = (key: string, ...aliases: string[]) => {
     const value = [key, ...aliases].map((k) => fields[k]).find(Boolean);
