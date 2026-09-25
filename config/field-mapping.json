@@ -8,7 +8,6 @@
       { "property": "project_interested__c", "onUpdate": "fillEmpty" },
       { "property": "also_interested_in__c", "onUpdate": "overwrite" }
     ] },
-    { "source": "project_interested", "targets": [{ "property":  "latest_project_interested", "onUpdate":  "overwrite" }] },
     { "source": "platform", "targets": [{ "property":  "platform", "onUpdate":  "overwrite" }] },
     { "source": "countrycode", "targets": [{ "property":  "country_code__c", "onUpdate":  "fillEmpty" }] },
     { "source": "leadsource", "targets": [{ "property":  "leadsource", "onUpdate":  "overwrite" }] },

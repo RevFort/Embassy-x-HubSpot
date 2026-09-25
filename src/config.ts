@@ -60,6 +60,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     },
     defaultCountryCode: env.DEFAULT_COUNTRY_CODE ?? '91',
 
+    /** Default hubspot_owner_id for new contacts: the sandbox owner while testing, the production owner otherwise. */
+    ownerId: bool(env.SANDBOX_MODE, false) ? (env.SANDBOX_OWNER_ID ?? '') : (env.PRODUCTION_OWNER_ID ?? ''),
+
     campaign: {
       enabled: bool(env.CAMPAIGN_ENABLED, false),
       objectType: env.CAMPAIGN_OBJECT_TYPE ?? '',
