@@ -12,7 +12,7 @@ const int = (v: string | undefined, fallback: number): number => {
 
 const targetSchema = z.object({
   property: z.string().min(1),
-  onUpdate: z.enum(['overwrite', 'fillEmpty', 'skip']).default('fillEmpty'),
+  onUpdate: z.enum(['overwrite', 'fillEmpty', 'skip', 'append']).default('fillEmpty'),
   type: z.enum(['string', 'textarea', 'date', 'number']).default('string'),
 });
 
@@ -56,9 +56,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
       mobile: env.PROP_MOBILE ?? 'phone',
       alternateMobile: env.PROP_ALTERNATE_MOBILE ?? 'mobilephone',
       email: env.PROP_EMAIL ?? 'email',
-      alternateEmail: env.PROP_ALTERNATE_EMAIL ?? 'alternate_email',
     },
     defaultCountryCode: env.DEFAULT_COUNTRY_CODE ?? '91',
+
+    /** Contact property incremented by 1 every time a re-enquiry (duplicate) comes in for the same contact. */
+    enquiryCountProperty: env.PROP_ENQUIRY_COUNT ?? 'enquiry_count',
 
     /** Default hubspot_owner_id for new contacts: the sandbox owner while testing, the production owner otherwise. */
     ownerId: bool(env.SANDBOX_MODE, false) ? (env.SANDBOX_OWNER_ID ?? '') : (env.PRODUCTION_OWNER_ID ?? ''),

@@ -23,7 +23,6 @@ export interface Enquiry {
   mobile?: NormalizedPhone;
   alternateMobile?: NormalizedPhone;
   email?: string;
-  alternateEmail?: string;
   /** All identifier keys (p:<phone>, e:<email>), used to serialize concurrent processing for the same person. */
   identityKeys: string[];
   warnings: string[];
@@ -160,7 +159,7 @@ export function parseEnquiry(input: unknown, defaultCountryCode: string): Enquir
     const value = [key, ...aliases].map((k) => fields[k]).find(Boolean);
     if (!value) return undefined;
     const e = normalizeEmail(value);
-    if (!e) warnings.push(`Ignored invalid ${key}: "${value}"`);
+    if (!e) throw new ValidationError(`Invalid ${key}: "${value}"`);
     return e;
   };
 
@@ -171,13 +170,12 @@ export function parseEnquiry(input: unknown, defaultCountryCode: string): Enquir
     mobile: phone('mobile'),
     alternateMobile: phone('alternatemobile', 'alternate_mobile'),
     email: email('email'),
-    alternateEmail: email('alternateemail', 'alternate_email'),
     identityKeys: [],
     warnings,
   };
 
   const phones = [enquiry.mobile, enquiry.alternateMobile];
-  const emails = [enquiry.email, enquiry.alternateEmail];
+  const emails = [enquiry.email];
   enquiry.identityKeys = [
     ...new Set([
       ...phones.filter((p): p is NormalizedPhone => !!p).map((p) => `p:${p.key}`),

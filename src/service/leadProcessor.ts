@@ -108,12 +108,12 @@ export class LeadProcessor {
       [id.mobile, enquiry.mobile?.e164],
       [id.alternateMobile, enquiry.alternateMobile?.e164],
       [id.email, enquiry.email],
-      [id.alternateEmail, enquiry.alternateEmail],
     ];
     for (const [prop, value] of assign) {
       if (value) props[prop] = value;
     }
     if (this.cfg.ownerId) props.hubspot_owner_id = this.cfg.ownerId;
+    props[this.cfg.enquiryCountProperty] = '1';
 
     const contactId = await this.crm.create('contacts', props);
     return { id: contactId, properties: props as Record<string, string> };
@@ -124,6 +124,11 @@ export class LeadProcessor {
     const props = await this.mappedProperties(enquiry, contact.properties, warnings);
     const id = this.cfg.identity;
     const cc = enquiry.countryCode;
+
+    const countProp = this.cfg.enquiryCountProperty;
+    const existingCount = Number(contact.properties[countProp]);
+    const baseCount = Number.isFinite(existingCount) && existingCount > 0 ? existingCount : 1;
+    props[countProp] = String(baseCount + 1);
 
     const phoneSlots = [id.mobile, id.alternateMobile];
     const knownPhones = new Set(
@@ -139,13 +144,10 @@ export class LeadProcessor {
     placePhone(enquiry.mobile, [id.mobile, id.alternateMobile]);
     placePhone(enquiry.alternateMobile, [id.alternateMobile, id.mobile]);
 
-    const knownEmails = new Set([id.email, id.alternateEmail].map((p) => contact.properties[p]?.toLowerCase()).filter(Boolean));
-    for (const email of [enquiry.email, enquiry.alternateEmail]) {
-      if (!email || knownEmails.has(email)) continue;
-      const slot = [id.email, id.alternateEmail].find((s) => !contact.properties[s] && !props[s]);
-      if (slot) props[slot] = email;
-      else warnings.push(`No empty email field on contact ${contact.id} for ${email}`);
-      knownEmails.add(email);
+    const knownEmail = contact.properties[id.email]?.toLowerCase();
+    if (enquiry.email && enquiry.email !== knownEmail) {
+      if (!contact.properties[id.email] && !props[id.email]) props[id.email] = enquiry.email;
+      else warnings.push(`No empty email field on contact ${contact.id} for ${enquiry.email}`);
     }
 
     try {
@@ -154,7 +156,7 @@ export class LeadProcessor {
       // Email is unique: if the new email belongs to a different contact, keep going without it.
       if (err instanceof HubSpotError && err.status === 409) {
         warnings.push(`Contact ${contact.id} not fully updated: ${err.message}`);
-        for (const p of [id.email, id.alternateEmail]) delete props[p];
+        delete props[id.email];
         await this.crm.update('contacts', contact.id, props);
       } else throw err;
     }
@@ -245,6 +247,12 @@ export class LeadProcessor {
         if (existing) {
           if (target.onUpdate === 'skip') continue;
           if (target.onUpdate === 'fillEmpty' && existing[target.property]) continue;
+          if (target.onUpdate === 'append') {
+            const combined = appendValue(existing[target.property], coerced);
+            if (combined === existing[target.property]) continue;
+            props[target.property] = combined;
+            continue;
+          }
           if (existing[target.property] === coerced) continue;
         }
         props[target.property] = coerced;
@@ -261,6 +269,7 @@ export class LeadProcessor {
         'hubspot_owner_id',
         'lastmodifieddate',
         'createdate',
+        this.cfg.enquiryCountProperty,
         ...this.mapping.fields.flatMap((f) => f.targets.map((t) => t.property)),
       ]),
     ].filter(Boolean);
@@ -303,6 +312,13 @@ function pickPrimaryContact(enquiry: Enquiry, contacts: CrmRecord[]): CrmRecord 
 const ts = (r: CrmRecord) => Date.parse(r.properties.lastmodifieddate ?? r.properties.createdate ?? '') || 0;
 
 const newestFirst = (records: CrmRecord[]) => [...records].sort((a, b) => ts(b) - ts(a));
+
+/** Adds `value` to a comma-separated list, skipping it if already present. */
+function appendValue(existing: string | null | undefined, value: string): string {
+  const parts = existing ? existing.split(',').map((s) => s.trim()).filter(Boolean) : [];
+  if (!parts.includes(value)) parts.push(value);
+  return parts.join(', ');
+}
 
 function coerce(value: string, target: MappingTarget, warnings: string[]): string | undefined {
   if (target.type === 'date') {
