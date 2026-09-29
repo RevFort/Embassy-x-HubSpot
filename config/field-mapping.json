@@ -1,5 +1,5 @@
 {
-  "_doc": "Maps agency payload keys (matched case-insensitively) to HubSpot Contact properties. onUpdate controls what happens when the contact already exists: overwrite = always write the new value, fillEmpty = only write if the existing value is blank, skip = only written on create, append = add the new value to the existing comma-separated list (no duplicates).",
+  "_doc": "Maps agency payload keys (matched case-insensitively) to HubSpot Contact properties. onUpdate controls what happens when the contact already exists: overwrite = always write the new value, fillEmpty = only write if the existing value is blank, skip = only written on create, append = add the new value to the existing comma-separated list (no duplicates). validateOptionsOf = reject the value unless it is one of the named property's current HubSpot dropdown options (fetched live, cached briefly), for a free-text property that must only accept another property's dropdown values.",
   "fields": [
     { "source": "firstname", "targets": [{ "property":  "firstname", "onUpdate":  "fillEmpty" }] },
     { "source": "lastname", "targets": [{ "property":  "lastname", "onUpdate":  "fillEmpty" }] },
@@ -7,7 +7,7 @@
     { "source": "comments", "targets": [{ "property":  "comments", "onUpdate":  "overwrite", "type":  "textarea" }] },
     { "source": "project_id", "targets": [
       { "property": "project_interested__c", "onUpdate": "fillEmpty" },
-      { "property": "also_interested_in__c", "onUpdate": "append" }
+      { "property": "also_interested_in__c", "onUpdate": "append", "validateOptionsOf": "project_interested__c" }
     ] },
     { "source": "platform", "targets": [{ "property":  "platform", "onUpdate":  "overwrite" }] },
     { "source": "countrycode", "targets": [{ "property":  "country_code__c", "onUpdate":  "fillEmpty" }] },

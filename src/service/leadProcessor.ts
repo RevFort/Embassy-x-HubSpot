@@ -17,8 +17,12 @@ export interface LeadResult {
   warnings: string[];
 }
 
+/** How long a fetched dropdown's valid options are trusted before re-fetching from HubSpot. */
+const OPTIONS_CACHE_TTL_MS = 10 * 60 * 1000;
+
 export class LeadProcessor {
   private readonly lock = new KeyedLock();
+  private readonly propertyOptionsCache = new Map<string, { values: string[]; expiresAt: number }>();
 
   constructor(
     private readonly crm: Crm,
@@ -244,6 +248,7 @@ export class LeadProcessor {
       for (const target of field.targets) {
         const coerced = coerce(value, target, warnings);
         if (coerced === undefined) continue;
+        if (target.validateOptionsOf) await this.assertValidOption(target, coerced);
         if (existing) {
           if (target.onUpdate === 'skip') continue;
           if (target.onUpdate === 'fillEmpty' && existing[target.property]) continue;
@@ -259,6 +264,27 @@ export class LeadProcessor {
       }
     }
     return props;
+  }
+
+  /**
+   * Rejects a value that isn't one of `target.validateOptionsOf`'s current HubSpot dropdown options,
+   * with the same "invalid option" wording HubSpot itself returns for a real enumeration property.
+   */
+  private async assertValidOption(target: MappingTarget, value: string): Promise<void> {
+    const options = await this.validOptionsFor(target.validateOptionsOf!);
+    if (options.length === 0 || options.includes(value)) return;
+    throw new ValidationError(
+      `Property "${target.property}" value "${value}" is not a valid value for this property. Valid values are: ${options.join(', ')}`,
+    );
+  }
+
+  private async validOptionsFor(property: string): Promise<string[]> {
+    const cached = this.propertyOptionsCache.get(property);
+    const now = Date.now();
+    if (cached && cached.expiresAt > now) return cached.values;
+    const values = await this.crm.getPropertyOptions('contacts', property);
+    this.propertyOptionsCache.set(property, { values, expiresAt: now + OPTIONS_CACHE_TTL_MS });
+    return values;
   }
 
   private async contactReadProperties(): Promise<string[]> {

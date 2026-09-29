@@ -14,6 +14,12 @@ const targetSchema = z.object({
   property: z.string().min(1),
   onUpdate: z.enum(['overwrite', 'fillEmpty', 'skip', 'append']).default('fillEmpty'),
   type: z.enum(['string', 'textarea', 'date', 'number']).default('string'),
+  /**
+   * Name of a HubSpot enumeration (dropdown) property whose options constrain this target's value.
+   * Use on a free-text property that should only accept another property's dropdown values, e.g.
+   * a single-line-text property that must mirror a real dropdown's options.
+   */
+  validateOptionsOf: z.string().min(1).optional(),
 });
 
 const mappingSchema = z.object({

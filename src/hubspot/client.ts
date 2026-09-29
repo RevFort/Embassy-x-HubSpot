@@ -25,6 +25,8 @@ export interface Crm {
   create(objectType: string, properties: CrmProperties): Promise<string>;
   update(objectType: string, id: string, properties: CrmProperties): Promise<void>;
   associateDefault(fromType: string, fromId: string, toType: string, toId: string): Promise<void>;
+  /** Valid dropdown option values for an enumeration property, e.g. to validate a free-text property against another's options. */
+  getPropertyOptions(objectType: string, propertyName: string): Promise<string[]>;
 }
 
 export class HubSpotError extends Error {
@@ -106,6 +108,14 @@ export class HubSpotCrm implements Crm {
 
   async associateDefault(fromType: string, fromId: string, toType: string, toId: string): Promise<void> {
     await this.request('PUT', `/crm/v4/objects/${fromType}/${fromId}/associations/default/${toType}/${toId}`);
+  }
+
+  async getPropertyOptions(objectType: string, propertyName: string): Promise<string[]> {
+    const res = await this.request<{ options?: { value: string }[] }>(
+      'GET',
+      `/crm/v3/properties/${objectType}/${propertyName}`,
+    );
+    return (res.options ?? []).map((o) => o.value);
   }
 
   private async request<T = unknown>(method: string, path: string, body?: unknown, idempotent = true): Promise<T> {
