@@ -1,29 +1,16 @@
-/**
- * Turns a raw agency payload into a normalized enquiry with matchable identifiers.
- * Keys are matched case-insensitively because the agency payload mixes styles
- * ("Project_interested", "LeadSource", "utm_ssc").
- */
-
 export interface NormalizedPhone {
-  /** Stored form, e.g. +916600110066 */
   e164: string;
-  /** Stable key used for batch grouping, locking and caching, e.g. 916600110066 */
   key: string;
-  /** Forms the number may already be stored in, used for HubSpot search. */
   variants: string[];
 }
 
 export interface Enquiry {
-  /** Original payload, untouched. */
   raw: Record<string, unknown>;
-  /** Lower-cased key -> trimmed string value, blanks removed. */
   fields: Record<string, string>;
-  /** Resolved digits-only calling code used to parse mobile/alternateMobile (payload value, or the default). */
   countryCode: string;
   mobile?: NormalizedPhone;
   alternateMobile?: NormalizedPhone;
   email?: string;
-  /** All identifier keys (p:<phone>, e:<email>), used to serialize concurrent processing for the same person. */
   identityKeys: string[];
   warnings: string[];
 }
@@ -34,11 +21,6 @@ export class ValidationError extends Error {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/**
- * Valid ITU-T E.164 country calling codes. Shared-prefix numbering plans (NANP, UK Crown
- * dependencies) are listed as `<calling code>-<area/zone code>`, e.g. `1-242` (Bahamas), `44-1624`
- * (Isle of Man); only the part before the hyphen is a country code for our purposes.
- */
 export const VALID_COUNTRY_CODES = [
   '1',
   '1-242', '1-246', '1-264', '1-268', '1-284', '1-340', '1-345', '1-441', '1-473', '1-649', '1-664',
@@ -84,6 +66,56 @@ export const VALID_COUNTRY_CODES = [
 
 const VALID_COUNTRY_CODE_PREFIXES = new Set(VALID_COUNTRY_CODES.map((c) => c.split('-')[0]));
 
+const NATIONAL_NUMBER_LENGTHS: Record<string, [min: number, max: number]> = {
+  '1': [10, 10], 
+  '91': [10, 10],
+  '44': [9, 10], 
+  '971': [9, 9], 
+  '966': [9, 9], 
+  '974': [8, 8], 
+  '965': [8, 8],
+  '968': [8, 8], 
+  '973': [8, 8], 
+  '65': [8, 8],
+  '60': [9, 10], 
+  '61': [9, 9],
+  '64': [8, 9], 
+  '852': [8, 8], 
+  '86': [11, 11], 
+  '81': [9, 10], 
+  '82': [9, 10], 
+  '63': [10, 10],
+  '62': [9, 12],
+  '92': [10, 10], 
+  '880': [10, 10], 
+  '94': [9, 9], 
+  '27': [9, 9], 
+  '234': [10, 10], 
+  '254': [9, 9], 
+  '49': [10, 11],
+  '33': [9, 9],
+  '39': [9, 10], 
+  '34': [9, 9],
+  '31': [9, 9], 
+  '7': [10, 10], 
+  '90': [10, 10], 
+};
+
+const DEFAULT_NSN_LENGTH: [min: number, max: number] = [6, 14];
+
+function isValidNsnLength(cc: string, nsnLength: number): boolean {
+  const [min, max] = NATIONAL_NUMBER_LENGTHS[cc] ?? DEFAULT_NSN_LENGTH;
+  return nsnLength >= min && nsnLength <= max;
+}
+
+function matchCountryCodePrefix(digits: string): string | undefined {
+  for (const len of [3, 2, 1]) {
+    const candidate = digits.slice(0, len);
+    if (VALID_COUNTRY_CODE_PREFIXES.has(candidate)) return candidate;
+  }
+  return undefined;
+}
+
 export function normalizePhone(raw: string, countryCode: string): NormalizedPhone | undefined {
   const hadPlus = raw.trim().startsWith('+');
   let digits = raw.replace(/\D/g, '');
@@ -94,15 +126,17 @@ export function normalizePhone(raw: string, countryCode: string): NormalizedPhon
   if (cc && digits.startsWith(cc) && (hadPlus || digits.length > 10)) {
     national = digits.slice(cc.length);
   } else if (hadPlus) {
-    // International number with a different country code than the one supplied; keep as-is.
-    return digits.length >= 6
+    const prefix = matchCountryCodePrefix(digits);
+    if (!prefix) return undefined;
+    const nsn = digits.slice(prefix.length);
+    return isValidNsnLength(prefix, nsn.length)
       ? { e164: `+${digits}`, key: digits, variants: [digits, `+${digits}`] }
       : undefined;
   } else {
     national = digits;
   }
   national = national.replace(/^0+/, '');
-  if (national.length < 6) return undefined;
+  if (!isValidNsnLength(cc, national.length)) return undefined;
   digits = `${cc}${national}`;
 
   const variants = new Set([national, `0${national}`, digits, `+${digits}`, `+${cc} ${national}`, `${cc} ${national}`]);
@@ -114,10 +148,6 @@ function normalizeEmail(raw: string | undefined): string | undefined {
   return v && EMAIL_RE.test(v) ? v : undefined;
 }
 
-/**
- * Falls back to the default (and warns) if the payload's countrycode isn't a recognized calling code.
- * Always returns digits only (no `+`), matching HubSpot's `country_code__c` dropdown options.
- */
 function resolveCountryCode(raw: string | undefined, defaultCountryCode: string, warnings: string[]): string {
   const fallback = defaultCountryCode.replace(/\D/g, '');
   if (!raw) return fallback;
