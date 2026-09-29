@@ -182,7 +182,7 @@ export function parseEnquiry(input: unknown, defaultCountryCode: string): Enquir
     const value = [key, ...aliases].map((k) => fields[k]).find(Boolean);
     if (!value) return undefined;
     const p = normalizePhone(value, cc);
-    if (!p) warnings.push(`Ignored invalid ${key}: "${value}"`);
+    if (!p) throw new ValidationError(`Invalid ${key}: "${value}"`);
     return p;
   };
   const email = (key: string, ...aliases: string[]) => {
