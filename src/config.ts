@@ -31,6 +31,23 @@ const mappingSchema = z.object({
   ),
 });
 
+const conversionEventsSchema = z.object({
+  events: z.array(
+    z.object({
+      property: z.string().min(1),
+      eventName: z.string().min(1),
+      when: z.array(z.string()).optional(),
+      valueProperty: z.string().min(1).optional(),
+    }),
+  ),
+});
+
+export type ConversionEvents = z.infer<typeof conversionEventsSchema>;
+
+export function loadConversionEvents(path: string): ConversionEvents {
+  return conversionEventsSchema.parse(JSON.parse(readFileSync(resolve(path), 'utf8')));
+}
+
 export type FieldMapping = z.infer<typeof mappingSchema>;
 export type MappingTarget = z.infer<typeof targetSchema>;
 
@@ -86,6 +103,27 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     integrationLog: {
       dir: env.INTEGRATION_LOG_DIR ?? './logs',
       includePayload: bool(env.INTEGRATION_LOG_INCLUDE_PAYLOAD, true),
+    },
+
+    conversions: {
+      eventsPath: env.CONVERSION_EVENTS_PATH ?? './config/conversion-events.json',
+      webhookSecret: env.HUBSPOT_WEBHOOK_SECRET ?? '',
+      publicBaseUrl: (env.PUBLIC_BASE_URL ?? '').replace(/\/+$/, ''),
+      aurum: {
+        baseUrl: (env.AURUM_BASE_URL ?? 'https://conversions-api.aurumanalytica.in').replace(/\/+$/, ''),
+        apiKey: env.AURUM_API_KEY ?? '',
+        timeoutMs: int(env.AURUM_TIMEOUT_MS, 10000),
+        maxRetries: int(env.AURUM_MAX_RETRIES, 3),
+      },
+      currency: env.CONVERSION_CURRENCY ?? 'INR',
+      props: {
+        source: env.PROP_CONVERSION_SOURCE ?? 'sub_source__c',
+        project: env.PROP_CONVERSION_PROJECT ?? 'project_interested__c',
+        alsoProject: env.PROP_CONVERSION_ALSO_PROJECT ?? 'also_interested_in__c',
+        gclid: env.PROP_GCLID ?? 'gclid',
+        metaLeadId: env.PROP_META_LEAD_ID ?? 'meta_leadgen_id',
+        remark: env.PROP_CONVERSION_REMARK ?? 'comments',
+      },
     },
 
     fieldMappingPath: env.FIELD_MAPPING_PATH ?? './config/field-mapping.json',

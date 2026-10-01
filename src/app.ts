@@ -4,12 +4,16 @@ import type { Logger } from 'pino';
 import { requireBearer, tokenEndpoint, TokenService } from './auth.js';
 import type { AppConfig } from './config.js';
 import type { IntegrationLog } from './integrationLog.js';
+import { verifyHubSpotSignature } from './hubspot/webhookSignature.js';
+import type { ConversionForwarder, HubSpotWebhookEvent } from './service/conversionForwarder.js';
 import type { LeadProcessor, LeadResult } from './service/leadProcessor.js';
 
 interface Deps {
   cfg: AppConfig;
   processor: LeadProcessor;
   integrationLog: IntegrationLog;
+  forwarder: ConversionForwarder;
+  conversionLog: IntegrationLog;
   log: Logger;
 }
 
@@ -24,7 +28,7 @@ const toResponse = (r: LeadResult) => ({
 const badRequest = (res: Response, message: string, errorcode = 'VALIDATION_ERROR') =>
   res.status(400).json({ responseId: message, status: 400, errorcode });
 
-export function createApp({ cfg, processor, integrationLog, log }: Deps) {
+export function createApp({ cfg, processor, integrationLog, forwarder, conversionLog, log }: Deps) {
   const app = express();
   app.disable('x-powered-by');
   app.set('trust proxy', true);
@@ -55,6 +59,55 @@ export function createApp({ cfg, processor, integrationLog, log }: Deps) {
     });
 
     return res.status(result.status).json(toResponse(result));
+  });
+
+  /**
+   * HubSpot webhook (contact.propertyChange). Verified, acknowledged immediately (HubSpot times out at 5s and
+   * retries on failure), then each event is looked up and forwarded to Aurum in the background.
+   */
+  app.post('/webhooks/hubspot', express.raw({ type: () => true, limit: '1mb' }), (req, res) => {
+    const rawBody = Buffer.isBuffer(req.body) ? req.body.toString('utf8') : '';
+    const wh = cfg.conversions;
+    const ok = verifyHubSpotSignature({
+      secret: wh.webhookSecret,
+      method: req.method,
+      url: `${wh.publicBaseUrl}${req.originalUrl}`,
+      rawBody,
+      v3Signature: req.get('x-hubspot-signature-v3'),
+      v3Timestamp: req.get('x-hubspot-request-timestamp'),
+      v1Signature: req.get('x-hubspot-signature'),
+    });
+    if (!ok) {
+      log.warn({ ip: req.ip }, 'HubSpot webhook signature rejected');
+      return res.status(401).json({ success: false, error: 'invalid signature' });
+    }
+
+    let events: HubSpotWebhookEvent[];
+    try {
+      const parsed: unknown = JSON.parse(rawBody);
+      events = Array.isArray(parsed) ? parsed : [parsed as HubSpotWebhookEvent];
+    } catch {
+      return res.status(400).json({ success: false, error: 'invalid JSON' });
+    }
+
+    res.status(200).json({ success: true, received: events.length });
+
+    const requestId = randomUUID();
+    void (async () => {
+      for (const event of events) {
+        const r = await forwarder.forward(event);
+        await conversionLog.write({
+          requestId,
+          payload: event,
+          status: r.outcome === 'failed' ? 502 : 200,
+          responseId: r.aurumId ?? r.reason ?? r.outcome,
+          action: `${r.outcome}${r.eventName ? ` ${r.eventName}` : ''}`,
+          contactId: r.contactId,
+          warnings: r.reason ? [r.reason] : [],
+          durationMs: r.durationMs,
+        });
+      }
+    })().catch((err) => log.error({ err }, 'Webhook processing crashed'));
   });
 
   app.use((_req, res) => {

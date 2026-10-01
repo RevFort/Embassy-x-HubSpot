@@ -27,6 +27,11 @@
     { "source": "meta_ad_id", "targets": [{ "property":  "meta_ad_id", "onUpdate":  "append" }] },
     { "source": "meta_leadgen_id", "targets": [{ "property":  "meta_leadgen_id", "onUpdate":  "append" }] },
     { "source": "meta_form_id", "targets": [{ "property":  "meta_form_id", "onUpdate":  "append" }] },
-    { "source": "meta_page_id", "targets": [{ "property":  "meta_page_id", "onUpdate":  "append" }] }
+    { "source": "meta_page_id", "targets": [{ "property":  "meta_page_id", "onUpdate":  "append" }] },
+    { "source": "utm_source", "targets": [{ "property":  "utm_source", "onUpdate":  "append" }] },
+    { "source": "utm_campaign", "targets": [{ "property":  "utm_campaign", "onUpdate":  "append" }] },
+    { "source": "utm_medium", "targets": [{ "property":  "utm_medium", "onUpdate":  "append" }] },
+    { "source": "utm_term", "targets": [{ "property":  "utm_term", "onUpdate":  "append" }] },
+    { "source": "gclid", "targets": [{ "property":  "hs_google_click_id", "onUpdate":  "append" }] }
   ]
 }

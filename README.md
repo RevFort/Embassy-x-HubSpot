@@ -107,6 +107,19 @@ docker build -t marketing-lead-api .
 Run it on Azure Container Apps or App Service (container), with the env vars from `.env.example` as app settings (HubSpot token, OAuth client secrets and signing secret in Key Vault).
 Mount persistent storage at `/app/logs` if the integration log files must survive restarts. Limit ingress to the agency's IPs.
 
-## Out of scope
+## HubSpot → Aurum conversion events (Meta / Google)
 
-HubSpot → Meta stage/remark events (retargeting) use the API Aurum will provide. That is a separate HubSpot workflow webhook, not part of this service.
+`POST /webhooks/hubspot` receives HubSpot `contact.propertyChange` webhooks and forwards each qualifying change to the
+Aurum Lead Conversions API (`POST /api/v1/leads`, `X-API-Key`).
+
+Flow per event: verify `X-HubSpot-Signature-v3` (401 if bad) → reply 200 immediately → look the rule up in
+`config/conversion-events.json` (property + optional trigger values → Aurum `event_name`) → search the Contact by record ID →
+build the payload → send. The ID of every outcome (sent / skipped / failed) is logged to `logs/conversions-YYYY-MM-DD.jsonl`.
+
+- **Routing:** the contact's `PROP_CONVERSION_SOURCE` (default `sub_source__c`) must be `Facebook` or `Google` (case-insensitive); anything else is skipped, because Aurum never forwards or re-routes it.
+- **Projects:** the primary project (`project_interested__c`) plus the comma-separated `also_interested_in__c` are de-duplicated, and one Aurum call is made per valid project (Embassy Edge, Embassy One Thane, Embassy Terazza; others are ignored). Each call's `event_id` is `hubspot-<eventId>-<project slug>`. A comma-separated source is likewise split, one call per Facebook/Google value.
+- **Hashing:** phone is normalized (default country code applied) then hashed both ways (`phone_sha256` digits, `phone_sha256_e164` with +); email is trimmed/lowercased then hashed. No raw PII is sent.
+- **Idempotency:** `event_id` = `hubspot-<HubSpot eventId>`, identical across HubSpot's retries, so Aurum returns 200 instead of double-counting. Aurum 503/network errors are retried in-process with the same `event_id`; 4xx are not.
+- **Optional fields:** `gclid` (latest), `lead_id` (latest `meta_leadgen_id`, digits only), `lead_remark`, and `value`+`currency` when the rule sets `valueProperty` (use for Booking).
+- **HubSpot setup:** subscribe the app to `contact.propertyChange` for each property in `conversion-events.json`, target URL `<PUBLIC_BASE_URL>/webhooks/hubspot`. Set `HUBSPOT_WEBHOOK_SECRET` to the app's client secret.
+- Events are acknowledged before processing, so an event in flight during a crash is lost (no queue). The integration log shows what was processed.

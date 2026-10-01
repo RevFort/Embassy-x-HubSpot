@@ -25,6 +25,7 @@ export class IntegrationLog {
     private readonly dir: string,
     private readonly includePayload: boolean,
     private readonly log: Logger,
+    private readonly filePrefix = 'integration',
   ) {}
 
   async write(entry: IntegrationLogEntry): Promise<void> {
@@ -33,7 +34,7 @@ export class IntegrationLog {
     try {
       this.ready ??= mkdir(this.dir, { recursive: true });
       await this.ready;
-      await appendFile(join(this.dir, `integration-${at.slice(0, 10)}.jsonl`), `${line}\n`);
+      await appendFile(join(this.dir, `${this.filePrefix}-${at.slice(0, 10)}.jsonl`), `${line}\n`);
     } catch (err) {
       // Never fail the API call because the log could not be written; stdout still has it.
       this.log.error({ err }, 'Could not write integration log');

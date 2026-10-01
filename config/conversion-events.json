@@ -1,0 +1,6 @@
+{
+  "_doc": "HubSpot contact property changes that become Aurum conversion events. property = the contact property the webhook subscription watches. eventName = one of Lead, Qualified_Lead, SV_Scheduled, SV_Done, Booking, Disqualified. when = only fire if the new value is one of these (case-insensitive); omit to fire on any change. valueProperty = contact property sent as the deal value (use for Booking).",
+  "events": [
+    { "property": "site_visit_meta__retargeting", "eventName": "SV_Done", "when": ["true"] }
+  ]
+}
