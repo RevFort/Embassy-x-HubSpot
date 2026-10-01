@@ -1,4 +1,7 @@
 import type { Logger } from 'pino';
+import { tracer } from '../trace.js';
+
+const trace = tracer('src/hubspot/client.ts');
 
 export type CrmProperties = Record<string, string | null | undefined>;
 
@@ -121,6 +124,7 @@ export class HubSpotCrm implements Crm {
   private async request<T = unknown>(method: string, path: string, body?: unknown, idempotent = true): Promise<T> {
     for (let attempt = 0; ; attempt++) {
       let res: Response;
+      trace('hubspot request', { attempt, method, url: `${this.opts.baseUrl}${path}`, body });
       try {
         res = await fetch(`${this.opts.baseUrl}${path}`, {
           method,
@@ -132,6 +136,7 @@ export class HubSpotCrm implements Crm {
           signal: AbortSignal.timeout(this.opts.timeoutMs),
         });
       } catch (err) {
+        trace('hubspot network error', { attempt, method, path, error: (err as Error).message });
         if (idempotent && attempt < this.opts.maxRetries) {
           await sleep(backoff(attempt));
           continue;
@@ -141,7 +146,9 @@ export class HubSpotCrm implements Crm {
 
       if (res.ok) {
         const text = await res.text();
-        return (text ? JSON.parse(text) : undefined) as T;
+        const data = text ? JSON.parse(text) : undefined;
+        trace('hubspot response', { attempt, method, path, status: res.status, body: data });
+        return data as T;
       }
 
       const text = await res.text();
@@ -151,6 +158,7 @@ export class HubSpotCrm implements Crm {
       } catch {
         /* keep text */
       }
+      trace('hubspot error response', { attempt, method, path, status: res.status, body: parsed });
       const retryable = res.status === 429 || (idempotent && res.status >= 500);
       if (retryable && attempt < this.opts.maxRetries) {
         const retryAfter = Number(res.headers.get('retry-after'));

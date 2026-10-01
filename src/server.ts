@@ -6,9 +6,11 @@ import { HubSpotCrm } from './hubspot/client.js';
 import { IntegrationLog } from './integrationLog.js';
 import { ConversionForwarder } from './service/conversionForwarder.js';
 import { LeadProcessor } from './service/leadProcessor.js';
+import { initTrace } from './trace.js';
 
 const cfg = loadConfig();
 const log = pino({ level: cfg.logLevel, redact: ['req.headers.authorization', 'req.body.client_secret'] });
+initTrace(log);
 
 if (!cfg.hubspot.accessToken) throw new Error('HUBSPOT_ACCESS_TOKEN is required');
 if (!cfg.oauth.clientId) throw new Error('OAUTH_CLIENT_ID is required');

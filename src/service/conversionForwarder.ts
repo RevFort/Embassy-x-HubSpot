@@ -4,6 +4,9 @@ import type { Aurum, AurumPayload, AurumResult } from '../aurum/client.js';
 import type { AppConfig, ConversionEvents } from '../config.js';
 import type { Crm, CrmRecord } from '../hubspot/client.js';
 import { normalizePhone } from '../normalize.js';
+import { tracer } from '../trace.js';
+
+const trace = tracer('src/service/conversionForwarder.ts');
 
 export interface HubSpotWebhookEvent {
   eventId?: number;
@@ -27,13 +30,15 @@ export interface ForwardResult {
   durationMs: number;
 }
 
-const PROJECTS = ['Embassy Edge', 'Embassy One Thane', 'Embassy Terazza'];
+const OPTIONS_CACHE_TTL_MS = 10 * 60 * 1000;
 const SOURCES: Record<string, string> = { facebook: 'Facebook', google: 'Google' };
 
 const squash = (s: string) => s.trim().replace(/\s+/g, ' ').toLowerCase();
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
 
 export class ConversionForwarder {
+  private optionsCache: { values: string[]; expiresAt: number } | undefined;
+
   constructor(
     private readonly crm: Crm,
     private readonly aurum: Aurum,
@@ -44,14 +49,20 @@ export class ConversionForwarder {
 
   async forward(event: HubSpotWebhookEvent): Promise<ForwardResult> {
     const started = Date.now();
-    const done = (r: Omit<ForwardResult, 'durationMs'>): ForwardResult => ({ ...r, durationMs: Date.now() - started });
+    const done = (r: Omit<ForwardResult, 'durationMs'>): ForwardResult => {
+      const result = { ...r, durationMs: Date.now() - started };
+      trace('forwarding finished', { result });
+      return result;
+    };
     const skip = (reason: string, extra: Partial<ForwardResult> = {}) => done({ outcome: 'skipped', reason, ...extra });
+    trace('processing webhook event', { event });
 
     try {
       if (event.subscriptionType !== 'contact.propertyChange') return skip(`ignored subscriptionType ${event.subscriptionType}`);
       const rule = this.rules.events.find((r) => r.property === event.propertyName);
       if (!rule) return skip(`no conversion event configured for property ${event.propertyName}`);
       const eventName = rule.eventName;
+      trace('conversion rule matched', { property: rule.property, eventName, when: rule.when, valueProperty: rule.valueProperty });
       if (rule.when && !rule.when.some((v) => squash(v) === squash(event.propertyValue ?? ''))) {
         return skip(`value "${event.propertyValue}" is not a trigger for ${rule.property}`, { eventName });
       }
@@ -61,11 +72,15 @@ export class ConversionForwarder {
 
       const contactId = String(event.objectId);
       const contact = await this.findContact(contactId, rule.valueProperty);
+      trace('contact received from HubSpot', { contactId, found: !!contact, properties: contact?.properties });
       if (!contact) return skip('contact not found', { contactId, eventName });
 
-      const built = this.buildPayloads(event as Required<HubSpotWebhookEvent>, contact, eventName, rule.valueProperty);
+      const projectOptions = await this.projectOptions();
+      trace('project dropdown options from HubSpot', { property: this.cfg.conversions.props.project, projectOptions });
+      const built = this.buildPayloads(event as Required<HubSpotWebhookEvent>, contact, eventName, projectOptions, rule.valueProperty);
       if ('skip' in built) return skip(built.skip, { contactId, eventName });
-      
+      trace('aurum payloads built', { count: built.payloads.length, payloads: built.payloads });
+
       const results: Omit<ForwardResult, 'durationMs'>[] = [];
       for (const payload of built.payloads) {
         const res = await this.aurum.send(payload);
@@ -73,9 +88,19 @@ export class ConversionForwarder {
       }
       return done(combine(results));
     } catch (err) {
+      trace('forwarding threw', { error: (err as Error).message });
       this.log.error({ err, event }, 'Conversion forwarding failed');
       return done({ outcome: 'failed', reason: (err as Error).message, contactId: String(event.objectId) });
     }
+  }
+
+  /** Valid values of the project dropdown (project_interested__c), fetched live and cached briefly. */
+  private async projectOptions(): Promise<string[]> {
+    const property = this.cfg.conversions.props.project;
+    if (this.optionsCache && this.optionsCache.expiresAt > Date.now()) return this.optionsCache.values;
+    const values = await this.crm.getPropertyOptions('contacts', property);
+    this.optionsCache = { values, expiresAt: Date.now() + OPTIONS_CACHE_TTL_MS };
+    return values;
   }
 
   private async findContact(contactId: string, valueProperty?: string): Promise<CrmRecord | undefined> {
@@ -95,6 +120,7 @@ export class ConversionForwarder {
     event: Required<HubSpotWebhookEvent>,
     contact: CrmRecord,
     eventName: string,
+    projectOptions: string[],
     valueProperty?: string,
   ): { payloads: AurumPayload[] } | { skip: string } {
     const { identity, conversions, defaultCountryCode } = this.cfg;
@@ -106,11 +132,11 @@ export class ConversionForwarder {
 
     const projects = unique(
       [...list(p[conversions.props.project]), ...list(p[conversions.props.alsoProject])].flatMap(
-        (v) => PROJECTS.find((n) => squash(n) === squash(v)) ?? [],
+        (v) => projectOptions.find((n) => squash(n) === squash(v)) ?? [],
       ),
     );
     if (!projects.length) {
-      return { skip: `no valid project in "${p[conversions.props.project] ?? ''}" / "${p[conversions.props.alsoProject] ?? ''}"; expected ${PROJECTS.join(', ')}` };
+      return { skip: `no valid project in "${p[conversions.props.project] ?? ''}" / "${p[conversions.props.alsoProject] ?? ''}"; expected one of: ${projectOptions.join(', ')}` };
     }
 
     const phone = [p[identity.mobile], p[identity.alternateMobile]]

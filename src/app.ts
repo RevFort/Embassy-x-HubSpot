@@ -7,6 +7,9 @@ import type { IntegrationLog } from './integrationLog.js';
 import { verifyHubSpotSignature } from './hubspot/webhookSignature.js';
 import type { ConversionForwarder, HubSpotWebhookEvent } from './service/conversionForwarder.js';
 import type { LeadProcessor, LeadResult } from './service/leadProcessor.js';
+import { tracer, withRequest } from './trace.js';
+
+const trace = tracer('src/app.ts');
 
 interface Deps {
   cfg: AppConfig;
@@ -66,8 +69,28 @@ export function createApp({ cfg, processor, integrationLog, forwarder, conversio
    * retries on failure), then each event is looked up and forwarded to Aurum in the background.
    */
   app.post('/webhooks/hubspot', express.raw({ type: () => true, limit: '1mb' }), (req, res) => {
+    const requestId = req.get('x-request-id') ?? randomUUID();
+    withRequest(requestId, () => handleWebhook(requestId, req, res));
+  });
+
+  const handleWebhook = (requestId: string, req: Request, res: Response) => {
     const rawBody = Buffer.isBuffer(req.body) ? req.body.toString('utf8') : '';
     const wh = cfg.conversions;
+    trace('webhook request received', {
+      method: req.method,
+      path: req.originalUrl,
+      ip: req.ip,
+      bytes: rawBody.length,
+      headers: {
+        'user-agent': req.get('user-agent'),
+        'content-type': req.get('content-type'),
+        'x-hubspot-signature-version': req.get('x-hubspot-signature-version'),
+        'x-hubspot-request-timestamp': req.get('x-hubspot-request-timestamp'),
+        'x-hubspot-signature-v3': req.get('x-hubspot-signature-v3'),
+        'x-hubspot-signature': req.get('x-hubspot-signature'),
+      },
+      body: rawBody,
+    });
     const ok = verifyHubSpotSignature({
       secret: wh.webhookSecret,
       method: req.method,
@@ -79,6 +102,7 @@ export function createApp({ cfg, processor, integrationLog, forwarder, conversio
     });
     if (!ok) {
       log.warn({ ip: req.ip }, 'HubSpot webhook signature rejected');
+      trace('responding 401 invalid signature');
       return res.status(401).json({ success: false, error: 'invalid signature' });
     }
 
@@ -87,12 +111,13 @@ export function createApp({ cfg, processor, integrationLog, forwarder, conversio
       const parsed: unknown = JSON.parse(rawBody);
       events = Array.isArray(parsed) ? parsed : [parsed as HubSpotWebhookEvent];
     } catch {
+      trace('responding 400 invalid JSON');
       return res.status(400).json({ success: false, error: 'invalid JSON' });
     }
 
+    trace('authenticated; responding 200 and processing in background', { events: events.length });
     res.status(200).json({ success: true, received: events.length });
 
-    const requestId = randomUUID();
     void (async () => {
       for (const event of events) {
         const r = await forwarder.forward(event);
@@ -106,9 +131,10 @@ export function createApp({ cfg, processor, integrationLog, forwarder, conversio
           warnings: r.reason ? [r.reason] : [],
           durationMs: r.durationMs,
         });
+        trace('event processed and written to conversions log', { eventId: event.eventId, outcome: r.outcome });
       }
     })().catch((err) => log.error({ err }, 'Webhook processing crashed'));
-  });
+  };
 
   app.use((_req, res) => {
     res.status(404).json({ responseId: 'Not found', status: 404, errorcode: 'NOT_FOUND' });

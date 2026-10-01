@@ -1,4 +1,7 @@
 import type { Logger } from 'pino';
+import { tracer } from '../trace.js';
+
+const trace = tracer('src/aurum/client.ts');
 
 export interface AurumPayload {
   phone_sha256: string;
@@ -39,6 +42,8 @@ export class AurumClient implements Aurum {
     for (let attempt = 0; ; attempt++) {
       let res: Response | undefined;
       let networkError: string | undefined;
+      const url = `${this.opts.baseUrl}/api/v1/leads`;
+      trace('aurum request', { attempt, method: 'POST', url, payload });
       try {
         res = await fetch(`${this.opts.baseUrl}/api/v1/leads`, {
           method: 'POST',
@@ -50,7 +55,12 @@ export class AurumClient implements Aurum {
         networkError = (err as Error).message;
       }
 
-      if (res && res.status !== 503) return toResult(res.status, await readJson(res));
+      if (res && res.status !== 503) {
+        const body = await readJson(res);
+        trace('aurum response', { attempt, status: res.status, body });
+        return toResult(res.status, body);
+      }
+      trace('aurum retryable failure', { attempt, status: res?.status, networkError });
 
       if (attempt >= this.opts.maxRetries) {
         return { httpStatus: res?.status ?? 0, success: false, error: networkError ?? 'Aurum unavailable (503)' };
