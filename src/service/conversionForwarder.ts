@@ -173,8 +173,8 @@ export class ConversionForwarder {
     const payloads: AurumPayload[] = [];
     for (const project of projects) {
       for (const source of sources) {
-        const suffix = `${slug(project)}${sources.length > 1 ? `-${slug(source)}` : ''}`;
-        payloads.push({ ...base, project_name: project, source, event_id: `hubspot-${event.eventId}-${suffix}` } as AurumPayload);
+        const suffix = `${slug(project)}${sources.length > 1 ? slug(source) : ''}`;
+        payloads.push({ ...base, project_name: project, source, event_id: `hubspot${event.eventId}${suffix}` } as AurumPayload);
       }
     }
     return { payloads };
@@ -182,7 +182,7 @@ export class ConversionForwarder {
 }
 
 const unique = <T>(xs: T[]) => [...new Set(xs)];
-const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '');
 
 /** Several calls -> one result: failed if any failed, else skipped if all were, else sent. */
 function combine(rs: Omit<ForwardResult, 'durationMs'>[]): Omit<ForwardResult, 'durationMs'> {
