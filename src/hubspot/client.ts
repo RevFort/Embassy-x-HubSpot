@@ -1,7 +1,7 @@
 import type { Logger } from 'pino';
 import { tracer } from '../trace.js';
 
-const trace = tracer('src/hubspot/client.ts');
+const trace = tracer();
 
 export type CrmProperties = Record<string, string | null | undefined>;
 

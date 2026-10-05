@@ -2,7 +2,7 @@ import { createHmac, createHash, timingSafeEqual } from 'node:crypto';
 
 import { tracer } from '../trace.js';
 
-const trace = tracer('src/hubspot/webhookSignature.ts');
+const trace = tracer();
 
 const MAX_AGE_MS = 5 * 60 * 1000;
 

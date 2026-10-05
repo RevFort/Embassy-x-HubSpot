@@ -1,7 +1,7 @@
 import type { Logger } from 'pino';
 import { tracer } from '../trace.js';
 
-const trace = tracer('src/aurum/client.ts');
+const trace = tracer();
 
 export interface AurumPayload {
   phone_sha256: string;

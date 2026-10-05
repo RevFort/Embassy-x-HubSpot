@@ -10,8 +10,8 @@ export const initTrace = (log: Logger) => {
 
 export const withRequest = <T>(requestId: string, fn: () => T): T => context.run({ requestId }, fn);
 
-export const tracer = (file: string) => (step: string, data: Record<string, unknown> = {}) => {
+export const tracer = () => (step: string, data: Record<string, unknown> = {}) => {
   const store = context.getStore();
   if (!root || !store) return;
-  root.info({ file, requestId: store.requestId, step, ...data }, `[${file}] ${step}`);
+  root.info({ requestId: store.requestId, step, ...data }, step);
 };

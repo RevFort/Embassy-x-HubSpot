@@ -9,7 +9,7 @@ import type { ConversionForwarder, HubSpotWebhookEvent } from './service/convers
 import type { LeadProcessor, LeadResult } from './service/leadProcessor.js';
 import { tracer, withRequest } from './trace.js';
 
-const trace = tracer('src/app.ts');
+const trace = tracer();
 
 interface Deps {
   cfg: AppConfig;

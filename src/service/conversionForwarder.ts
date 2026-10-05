@@ -6,7 +6,7 @@ import type { Crm, CrmRecord } from '../hubspot/client.js';
 import { normalizePhone } from '../normalize.js';
 import { tracer } from '../trace.js';
 
-const trace = tracer('src/service/conversionForwarder.ts');
+const trace = tracer();
 
 export interface HubSpotWebhookEvent {
   eventId?: number;
