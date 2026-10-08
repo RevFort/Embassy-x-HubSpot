@@ -15,6 +15,7 @@
     { "source": "modeofenquiry", "targets": [{ "property":  "mode_of_enquiry__c", "onUpdate":  "overwrite" }] },
     { "source": "subsource", "targets": [{ "property":  "sub_source__c", "onUpdate":  "overwrite" }] },
     { "source": "medium", "targets": [{ "property":  "medium__c", "onUpdate":  "overwrite" }] },
+    { "source": "medium__c", "targets": [{ "property":  "medium__c", "onUpdate":  "overwrite" }] },
     { "source": "term", "targets": [{ "property":  "term__c", "onUpdate":  "overwrite" }] },
     { "source": "enquirydate", "targets": [{ "property":  "date_of_enquiry__c", "onUpdate":  "overwrite", "type":  "date" }] },
     {"source": "campaignId", "targets": [{ "property":  "campaign_id__c", "onUpdate":  "overwrite" }] },

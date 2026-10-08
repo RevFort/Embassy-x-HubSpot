@@ -3,7 +3,7 @@ import type { Logger } from 'pino';
 import type { Aurum, AurumPayload, AurumResult } from '../aurum/client.js';
 import type { AppConfig, ConversionEvents } from '../config.js';
 import type { Crm, CrmRecord } from '../hubspot/client.js';
-import { normalizePhone } from '../normalize.js';
+import { normalizePhone, PLACEHOLDER_EMAIL_DOMAIN } from '../normalize.js';
 import { tracer } from '../trace.js';
 
 const trace = tracer();
@@ -31,7 +31,7 @@ export interface ForwardResult {
 }
 
 const OPTIONS_CACHE_TTL_MS = 10 * 60 * 1000;
-const SOURCES: Record<string, string> = { facebook: 'Facebook', google: 'Google' };
+const SOURCES: Record<string, string> = { facebook: 'Facebook', google: 'Google', linkedin: 'LinkedIn' };
 
 const squash = (s: string) => s.trim().replace(/\s+/g, ' ').toLowerCase();
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
@@ -128,7 +128,7 @@ export class ConversionForwarder {
     const list = (v: string | null | undefined) => (v ?? '').split(',').map((s) => s.trim()).filter(Boolean);
 
     const sources = unique(list(p[conversions.props.source]).flatMap((s) => SOURCES[squash(s)] ?? []));
-    if (!sources.length) return { skip: `source "${p[conversions.props.source] ?? ''}" is not Facebook or Google; Aurum would not forward it` };
+    if (!sources.length) return { skip: `source "${p[conversions.props.source] ?? ''}" is not Facebook, Google or LinkedIn; Aurum would not forward it` };
 
     const projects = unique(
       [...list(p[conversions.props.project]), ...list(p[conversions.props.alsoProject])].flatMap(
@@ -142,17 +142,26 @@ export class ConversionForwarder {
     const phone = [p[identity.mobile], p[identity.alternateMobile]]
       .flatMap((v) => (v ? [normalizePhone(v, defaultCountryCode)] : []))
       .find((n) => n !== undefined);
-    if (!phone) return { skip: 'contact has no valid phone number' };
 
-    const base: Pick<AurumPayload, 'phone_sha256' | 'phone_sha256_e164' | 'event_name' | 'event_time'> &
-      Partial<AurumPayload> = {
-      phone_sha256: sha256(phone.e164.slice(1)),
-      phone_sha256_e164: sha256(phone.e164),
+    // The synthetic <phone>@hubintegration.com address matches nobody, so it is never hashed.
+    const rawEmail = p[identity.email]?.trim().toLowerCase();
+    const email = rawEmail && !rawEmail.endsWith(`@${PLACEHOLDER_EMAIL_DOMAIN}`) ? rawEmail : undefined;
+
+    // Each platform matches on a different identifier: Facebook/Google on phone, LinkedIn on email only.
+    const missing = (s: string) => (s === 'LinkedIn' ? (email ? undefined : 'a real email') : phone ? undefined : 'a valid phone number');
+    const usable = sources.filter((s) => !missing(s));
+    if (!usable.length) {
+      return { skip: sources.map((s) => `${s} lead needs ${missing(s)}, which the contact does not have`).join('; ') };
+    }
+
+    const base: Pick<AurumPayload, 'event_name' | 'event_time'> & Partial<AurumPayload> = {
       event_name: eventName,
       event_time: new Date(event.occurredAt).toISOString(),
     };
-
-    const email = p[identity.email]?.trim().toLowerCase();
+    if (phone) {
+      base.phone_sha256 = sha256(phone.e164.slice(1));
+      base.phone_sha256_e164 = sha256(phone.e164);
+    }
     if (email) base.email_sha256 = sha256(email);
 
     // gclid / meta_leadgen_id are "append" properties (comma-separated history): the latest is last.
@@ -172,8 +181,8 @@ export class ConversionForwarder {
 
     const payloads: AurumPayload[] = [];
     for (const project of projects) {
-      for (const source of sources) {
-        const suffix = `${slug(project)}${sources.length > 1 ? slug(source) : ''}`;
+      for (const source of usable) {
+        const suffix = `${slug(project)}${usable.length > 1 ? slug(source) : ''}`;
         payloads.push({ ...base, project_name: project, source, event_id: `hubspot${event.eventId}${suffix}` } as AurumPayload);
       }
     }

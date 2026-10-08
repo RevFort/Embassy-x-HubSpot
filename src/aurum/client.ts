@@ -4,8 +4,8 @@ import { tracer } from '../trace.js';
 const trace = tracer();
 
 export interface AurumPayload {
-  phone_sha256: string;
-  phone_sha256_e164: string;
+  phone_sha256?: string;
+  phone_sha256_e164?: string;
   email_sha256?: string;
   event_name: string;
   project_name: string;

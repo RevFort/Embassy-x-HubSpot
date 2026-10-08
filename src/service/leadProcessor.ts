@@ -1,7 +1,7 @@
 import type { Logger } from 'pino';
 import type { AppConfig, FieldMapping, MappingTarget } from '../config.js';
 import { HubSpotError, type Crm, type CrmProperties, type CrmRecord, type FilterGroup } from '../hubspot/client.js';
-import { normalizePhone, parseEnquiry, ValidationError, type Enquiry, type NormalizedPhone } from '../normalize.js';
+import { normalizePhone, parseEnquiry, PLACEHOLDER_EMAIL_DOMAIN, ValidationError, type Enquiry, type NormalizedPhone } from '../normalize.js';
 import { KeyedLock } from './keyedLock.js';
 
 export type LeadAction = 'EXISTING_CONTACT_UPDATED' | 'NEW_CONTACT_CREATED';
@@ -215,7 +215,7 @@ export class LeadProcessor {
       f.leadsource && `Lead source: ${f.leadsource}`,
       f.subsource && `Sub-source: ${f.subsource}`,
       f.utm_ssc && `UTM source: ${f.utm_ssc}`,
-      f.medium && `Medium: ${f.medium}`,
+      (f.medium__c ?? f.medium) && `Medium: ${f.medium__c ?? f.medium}`,
       f.utm_source && `UTM source (ads): ${f.utm_source}`,
       f.utm_campaign && `UTM campaign: ${f.utm_campaign}`,
       f.utm_medium && `UTM medium: ${f.utm_medium}`,
@@ -330,8 +330,6 @@ export function errorResult(err: unknown): LeadResult {
 function phonesOf(e: Enquiry): NormalizedPhone[] {
   return [e.mobile, e.alternateMobile].filter((p): p is NormalizedPhone => !!p);
 }
-
-const PLACEHOLDER_EMAIL_DOMAIN = 'hubintegration.com';
 
 /** `<phone digits>@hubintegration.com`, used when a lead arrives without an email. */
 function placeholderEmail(e: Enquiry): string | undefined {

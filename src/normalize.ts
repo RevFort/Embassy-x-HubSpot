@@ -19,7 +19,10 @@ export class ValidationError extends Error {
   readonly errorcode = 'VALIDATION_ERROR';
 }
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+/** Domain of the synthetic `<phone>@…` email given to leads that arrive without one. */
+export const PLACEHOLDER_EMAIL_DOMAIN = 'hubintegration.com';
+
+const EMAIL_RE =/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export const VALID_COUNTRY_CODES = [
   '1',
