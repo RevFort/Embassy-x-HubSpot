@@ -111,7 +111,7 @@ export class LeadProcessor {
     const assign: [string, string | undefined][] = [
       [id.mobile, enquiry.mobile?.e164],
       [id.alternateMobile, enquiry.alternateMobile?.e164],
-      [id.email, enquiry.email],
+      [id.email, enquiry.email ?? placeholderEmail(enquiry)],
     ];
     for (const [prop, value] of assign) {
       if (value) props[prop] = value;
@@ -152,6 +152,10 @@ export class LeadProcessor {
     if (enquiry.email && enquiry.email !== knownEmail) {
       if (!contact.properties[id.email] && !props[id.email]) props[id.email] = enquiry.email;
       else warnings.push(`No empty email field on contact ${contact.id} for ${enquiry.email}`);
+    } else if (!enquiry.email && !contact.properties[id.email] && !props[id.email]) {
+      // No email supplied and none on file: set the placeholder. An existing email is never overwritten.
+      const placeholder = placeholderEmail(enquiry);
+      if (placeholder) props[id.email] = placeholder;
     }
 
     try {
@@ -325,6 +329,14 @@ export function errorResult(err: unknown): LeadResult {
 
 function phonesOf(e: Enquiry): NormalizedPhone[] {
   return [e.mobile, e.alternateMobile].filter((p): p is NormalizedPhone => !!p);
+}
+
+const PLACEHOLDER_EMAIL_DOMAIN = 'hubintegration.com';
+
+/** `<phone digits>@hubintegration.com`, used when a lead arrives without an email. */
+function placeholderEmail(e: Enquiry): string | undefined {
+  const phone = e.mobile ?? e.alternateMobile;
+  return phone ? `${phone.e164.replace(/\D/g, '')}@${PLACEHOLDER_EMAIL_DOMAIN}` : undefined;
 }
 
 /** Prefer the contact matched on the incoming mobile, then the most recently modified. */
